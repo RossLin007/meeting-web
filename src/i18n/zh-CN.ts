@@ -187,6 +187,13 @@ const zhCN = {
         stopAllVideo: '全体关闭视频',
     },
 
+    waitingRoom: {
+        title: '等候室',
+        greeting: '您好，{{name}}',
+        waiting: '请稍候，主持人将很快允许您进入会议',
+        leave: '离开等候室',
+    },
+
     chat: {
         title: '聊天',
         placeholder: '输入消息...',

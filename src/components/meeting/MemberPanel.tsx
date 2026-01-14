@@ -44,6 +44,14 @@ interface MemberPanelProps {
     onKickMember?: (userId: string) => void;  // 踢出成员
     onMuteAll?: () => void;        // 全体静音
     onStopAllVideo?: () => void;   // 全体关闭视频
+    // 等候室相关
+    waitingList?: Array<{ userId: string; userName: string; joinedAt: number }>;
+    waitingRoomEnabled?: boolean;
+    onToggleWaitingRoom?: (enabled: boolean) => void;
+    onAdmitFromWaitingRoom?: (userId: string) => void;
+    onRejectFromWaitingRoom?: (userId: string) => void;
+    onAdmitAllFromWaitingRoom?: () => void;
+    hideHeader?: boolean;  // 隐藏头部（用于 FloatingPanel 包裹时）
 }
 
 // 图标组件
@@ -102,6 +110,14 @@ const VideoOffIcon = () => (
     </svg>
 );
 
+const KickIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <line x1="17" y1="8" x2="23" y2="8" />
+    </svg>
+);
+
 const MoreIcon = () => (
     <svg viewBox="0 0 24 24" fill="currentColor">
         <circle cx="12" cy="5" r="2" />
@@ -138,6 +154,14 @@ function MemberPanelComponent({
     onKickMember,
     onMuteAll,
     onStopAllVideo,
+    // 等候室
+    waitingList = [],
+    waitingRoomEnabled = false,
+    onToggleWaitingRoom,
+    onAdmitFromWaitingRoom,
+    onRejectFromWaitingRoom,
+    onAdmitAllFromWaitingRoom,
+    hideHeader = false,
 }: MemberPanelProps) {
     const { t } = useTranslation();
     const [searchQuery, setSearchQuery] = useState('');
@@ -218,14 +242,17 @@ function MemberPanelComponent({
 
     return (
         <div className={styles.container}>
-            <div className={styles.header}>
-                <h3 className={styles.title}>
-                    {t('members.title')} ({allMembers.length})
-                </h3>
-                <button className={styles.closeBtn} onClick={onClose}>
-                    <CloseIcon />
-                </button>
-            </div>
+            {/* 头部 - 可隐藏 */}
+            {!hideHeader && (
+                <div className={styles.header}>
+                    <h3 className={styles.title}>
+                        {t('members.title')} ({allMembers.length})
+                    </h3>
+                    <button className={styles.closeBtn} onClick={onClose}>
+                        <CloseIcon />
+                    </button>
+                </div>
+            )}
 
             {/* 搜索框 */}
             <div className={styles.searchBox}>
@@ -238,6 +265,69 @@ function MemberPanelComponent({
                     className={styles.searchInput}
                 />
             </div>
+
+            {/* 等候室管理（仅主持人可见） */}
+            {currentIsHost && onToggleWaitingRoom && (
+                <div className={styles.waitingRoomSection}>
+                    <div className={styles.waitingRoomHeader}>
+                        <span>{t('waitingRoom.title', '等候室')}</span>
+                        <label className={styles.toggleSwitch}>
+                            <input
+                                type="checkbox"
+                                checked={waitingRoomEnabled}
+                                onChange={(e) => onToggleWaitingRoom(e.target.checked)}
+                            />
+                            <span className={styles.slider}></span>
+                        </label>
+                    </div>
+
+                    {waitingRoomEnabled && waitingList.length > 0 && (
+                        <>
+                            <div className={styles.waitingListHeader}>
+                                <span>{t('waitingRoom.waiting', '等待中')} ({waitingList.length})</span>
+                                {onAdmitAllFromWaitingRoom && (
+                                    <button
+                                        className={styles.admitAllBtn}
+                                        onClick={onAdmitAllFromWaitingRoom}
+                                    >
+                                        {t('waitingRoom.admitAll', '全部允许')}
+                                    </button>
+                                )}
+                            </div>
+                            <div className={styles.waitingList}>
+                                {waitingList.map((waiter) => (
+                                    <div key={waiter.userId} className={styles.waitingItem}>
+                                        <div className={styles.avatar}>
+                                            <UserIcon />
+                                        </div>
+                                        <span className={styles.waiterName}>{waiter.userName}</span>
+                                        <div className={styles.waitingActions}>
+                                            {onAdmitFromWaitingRoom && (
+                                                <button
+                                                    className={styles.admitBtn}
+                                                    onClick={() => onAdmitFromWaitingRoom(waiter.userId)}
+                                                    title={t('waitingRoom.admit', '允许进入')}
+                                                >
+                                                    ✓
+                                                </button>
+                                            )}
+                                            {onRejectFromWaitingRoom && (
+                                                <button
+                                                    className={styles.rejectBtn}
+                                                    onClick={() => onRejectFromWaitingRoom(waiter.userId)}
+                                                    title={t('waitingRoom.reject', '拒绝')}
+                                                >
+                                                    ✕
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
 
             {/* 成员列表 */}
             <div className={styles.memberList}>
@@ -282,6 +372,12 @@ function MemberPanelComponent({
                                 <span className={styles.hostBadge}>
                                     <CrownIcon />
                                     {t('members.host')}
+                                </span>
+                            )}
+                            {member.isCoHost && !member.isHost && (
+                                <span className={styles.coHostBadge}>
+                                    <CrownIcon />
+                                    {t('members.cohost', '联席主持人')}
                                 </span>
                             )}
                         </div>
@@ -357,6 +453,16 @@ function MemberPanelComponent({
                                         <button onClick={() => { onStopMemberVideo?.(member.userId); setActiveMenu(null); }}>
                                             <VideoOffIcon />
                                             {t('members.stopVideo')}
+                                        </button>
+                                    )}
+                                    {/* 移除成员：仅主持人可用，不能移除自己 */}
+                                    {currentIsHost && member.userId !== currentUserId && onKickMember && (
+                                        <button
+                                            onClick={() => { onKickMember(member.userId); setActiveMenu(null); }}
+                                            className={styles.dangerBtn}
+                                        >
+                                            <KickIcon />
+                                            {t('members.kick', '移除成员')}
                                         </button>
                                     )}
                                 </div>

@@ -69,8 +69,9 @@ interface RecordingResult {
 export async function startCloudRecording(params: StartRecordingParams): Promise<RecordingResult> {
     const { sdkAppId, roomId, recordUserId, userSig, useMixStream = true } = params;
 
-    // 决定录制模式： 1=单流录制，2=混流录制
-    const recordMode = useMixStream ? 2 : 1;
+    // 始终使用混流录制（2），无论人数多少
+    // 单流录制（1）会为每个用户生成独立文件
+    const recordMode = 2;  // 强制混流录制
 
     try {
         const request = {
@@ -83,31 +84,34 @@ export async function startCloudRecording(params: StartRecordingParams): Promise
 
             // 录制参数
             RecordParams: {
-                RecordMode: recordMode,   // 1=单流, 2=混流
+                RecordMode: recordMode,   // 2=混流录制
                 MaxIdleTime: 60,          // 最大空闲时间 60 秒
                 StreamType: 0,            // 0=音视频, 1=仅音频, 2=仅视频
             },
 
-            // 混流转码参数 (仅混流模式有效)
-            ...(useMixStream && {
-                MixTranscodeParams: {
-                    VideoParams: {
-                        Width: 360,         // 视频宽度
-                        Height: 640,        // 视频高度
-                        Fps: 15,            // 帧率
-                        BitRate: 500000,    // 码率 500000 bps = 500kbps
-                        Gop: 10,            // 关键帧间隔
-                    },
+            // 混流转码参数 (混流模式必须)
+            // 优化文件大小：使用较低码率，会议场景足够清晰
+            MixTranscodeParams: {
+                VideoParams: {
+                    Width: 640,           // 标清分辨率
+                    Height: 360,
+                    Fps: 15,              // 帧率（会议足够）
+                    BitRate: 500000,      // 码率 500Kbps（约 225MB/小时）
+                    Gop: 3,               // 关键帧间隔（秒）
                 },
-                MixLayoutParams: {
-                    MixLayoutMode: 3,       // 3=自适应布局 (九宫格)
-                },
-            }),
+                // 音频使用默认配置
+            },
+
+            // 混流布局参数
+            MixLayoutParams: {
+                MixLayoutMode: 3,         // 3=自适应布局 (九宫格)
+                // MaxVideoUser: 9,       // 最大视频用户数（可选）
+            },
 
             // 存储参数 - 腾讯云 COS
             StorageParams: {
                 CloudStorage: {
-                    Vendor: 0,          // 0=腾讯云 COS (注意: 2 是阿里云 OSS)
+                    Vendor: 0,          // 0=腾讯云 COS
                     Region: process.env.COS_REGION || 'ap-hongkong',
                     Bucket: process.env.COS_BUCKET || 'xiaofan-1395107881',
                     AccessKey: process.env.TENCENT_SECRET_ID || '',
@@ -117,13 +121,15 @@ export async function startCloudRecording(params: StartRecordingParams): Promise
             },
         };
 
-        console.log('Starting cloud recording:', {
+        console.log('Starting cloud recording with params:', JSON.stringify({
             sdkAppId,
             roomId,
             recordUserId,
-            recordMode: useMixStream ? 'MixedStream' : 'SingleStream',
-            streamType: 'AudioVideo',
-        });
+            recordMode: 'MixedStream (合流录制)',
+            videoResolution: '1280x720',
+            storageRegion: request.StorageParams.CloudStorage.Region,
+            storageBucket: request.StorageParams.CloudStorage.Bucket,
+        }, null, 2));
 
         const response = await client.CreateCloudRecording(request);
 

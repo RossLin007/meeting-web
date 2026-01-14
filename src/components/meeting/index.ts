@@ -12,4 +12,6 @@ export { SettingsModal } from './SettingsModal';
 export { EndMeetingModal } from './EndMeetingModal';
 export { RecordingControl } from './RecordingControl';
 export { LayoutSelector } from './LayoutSelector';
+export { WaitingRoom } from './WaitingRoom';
+export { FloatingPanel } from './FloatingPanel';
 export type { LayoutType } from './LayoutSelector';

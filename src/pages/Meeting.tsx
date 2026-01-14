@@ -13,12 +13,14 @@ import { VideoGrid } from '@/components/meeting/VideoGrid';
 import { Toolbar } from '@/components/meeting/Toolbar';
 import { ChatPanel } from '@/components/meeting/ChatPanel';
 import { MemberPanel } from '@/components/meeting/MemberPanel';
+import { FloatingPanel } from '@/components/meeting/FloatingPanel';
 import { TopBar } from '@/components/meeting/TopBar';
 import { InviteModal } from '@/components/meeting/InviteModal';
 import { SettingsModal } from '@/components/meeting/SettingsModal';
 import { EndMeetingModal } from '@/components/meeting/EndMeetingModal';
 import { RecordingControl } from '@/components/meeting/RecordingControl';
 import { LayoutSelector, type LayoutType } from '@/components/meeting/LayoutSelector';
+import { WaitingRoom } from '@/components/meeting/WaitingRoom';
 import styles from './Meeting.module.css';
 
 const DEFAULT_TIMEOUT = 30000;
@@ -63,6 +65,12 @@ export function Meeting() {
     const [remoteUserNames, setRemoteUserNames] = useState<Record<string, string>>({});
     const [layout, setLayout] = useState<LayoutType>('gallery');
     const [showLayoutSelector, setShowLayoutSelector] = useState(false);
+    const [latestChat, setLatestChat] = useState<{
+        senderName: string;
+        content: string;
+        timestamp: number;
+    } | undefined>(undefined);
+    const [hasShownRecordingNotice, setHasShownRecordingNotice] = useState(false);
 
     // 后端 API 基础 URL
     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -149,6 +157,20 @@ export function Meeting() {
         },
         isChatVisible: showChat,  // 传递聊天面板可见性
         onUnreadCountChange: setUnreadCountCallback,  // 更新未读数量
+        onNewMessage: (newMessages) => {
+            // 获取最新一条消息用于顶部栏显示
+            if (newMessages.length > 0) {
+                const latest = newMessages[newMessages.length - 1];
+                // 只显示文本消息，且不是自己发的
+                if (latest.type === 'text' && latest.senderId !== currentUser.userId) {
+                    setLatestChat({
+                        senderName: latest.senderName || latest.senderId,
+                        content: latest.content,
+                        timestamp: Date.now(),
+                    });
+                }
+            }
+        },
     });
 
     // 房间状态 Hook（主持人/录制状态同步）- IM 方式
@@ -184,15 +206,23 @@ export function Meeting() {
         isHost: socketIsHost,
         canControl: socketCanControl,
         isRecording: socketIsRecording,
+        inWaitingRoom,
+        waitingList,
+        waitingRoomEnabled,
         broadcastAudioState: socketBroadcastAudioState,
         broadcastVideoState: socketBroadcastVideoState,
         broadcastScreenShareState: socketBroadcastScreenShareState,
         endMeeting: socketEndMeeting,
         muteAll: socketMuteAll,
+        stopVideoAll: socketStopVideoAll,
         muteMember: socketMuteMember,
         stopVideoMember: socketStopVideoMember,
         kickMember: socketKickMember,
         transferHost: socketTransferHost,
+        toggleWaitingRoom,
+        admitFromWaitingRoom,
+        rejectFromWaitingRoom,
+        admitAllFromWaitingRoom,
     } = useSocket({
         userId: currentUser.userId,
         userName: currentUser.userName,
@@ -226,6 +256,18 @@ export function Meeting() {
                 imBroadcastVideoState(false);
                 socketBroadcastVideoState(false);
                 addToast('主持人已关闭你的视频', 'warning', 4000);
+            } catch (error) {
+                console.error('关闭摄像头失败:', error);
+            }
+        },
+        onStoppedAllVideo: async () => {
+            console.log('📹 全体关闭视频');
+            try {
+                await stopLocalVideo();
+                setCameraOn(false);
+                imBroadcastVideoState(false);
+                socketBroadcastVideoState(false);
+                addToast(t('members.hostStoppedAllVideo', '主持人已关闭所有人的视频'), 'warning', 4000);
             } catch (error) {
                 console.error('关闭摄像头失败:', error);
             }
@@ -464,6 +506,18 @@ export function Meeting() {
         onError: (error) => console.error('Recording error:', error),
     });
 
+    // 加入会议时检测录制状态，显示提示
+    useEffect(() => {
+        if (!hasShownRecordingNotice && roomState?.recording?.isRecording) {
+            addToast({
+                type: 'warning',
+                message: t('recording.meetingIsRecording', '会议正在录制中，您的音视频将被记录'),
+                duration: 5000,
+            });
+            setHasShownRecordingNotice(true);
+        }
+    }, [roomState?.recording?.isRecording, hasShownRecordingNotice, addToast, t]);
+
     // 加载状态：等待用户身份验证
     const isLoading = !currentUser.userSig || currentUser.userId.startsWith('guest_');
 
@@ -501,20 +555,30 @@ export function Meeting() {
         );
     }
 
+    // 如果用户在等候室中
+    if (inWaitingRoom) {
+        return (
+            <WaitingRoom
+                userName={currentUser.userName || currentUser.userId}
+                onLeave={doLeaveMeeting}
+            />
+        );
+    }
+
     return (
         <div className={styles.container}>
             {/* 顶部栏 */}
             <div className={styles.topSection}>
                 <TopBar
                     title={meetingTitle}
-                    roomId={roomId || ''}
                     networkQuality={networkQuality}
+                    latestChat={latestChat}
                 />
                 {/* 录制控制 */}
                 <div className={styles.recordingWrapper}>
                     <RecordingControl
                         isRecording={isRecording}
-                        isRoomRecording={roomState.recording.isRecording}
+                        isRoomRecording={roomState?.recording?.isRecording ?? false}
                         recordingTime={recordingTime}
                         isHost={isHost || canControl}
                         onStartRecording={async () => {
@@ -538,7 +602,9 @@ export function Meeting() {
                     <VideoGrid
                         localVideoRef={localVideoRef}
                         screenShareRef={screenShareRef}
-                        remoteUsers={remoteUsers}
+                        remoteUsers={socketMembers.length > 0
+                            ? remoteUsers.filter(userId => socketMembers.some(m => m.userId === userId))
+                            : remoteUsers}
                         remoteUserNames={remoteUserNames}
                         memberAudioStates={socketMembers.reduce((acc, m) => {
                             acc[m.userId] = m.isAudioOn;
@@ -554,8 +620,20 @@ export function Meeting() {
                     />
                 </div>
 
-                {/* 聊天面板 */}
-                {showChat && (
+                {/* 聊天面板 - 悬浮窗 */}
+                <FloatingPanel
+                    title={t('chat.title', '聊天')}
+                    icon={
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                    }
+                    badge={unreadCount}
+                    isOpen={showChat}
+                    onClose={() => setShowChat(false)}
+                    defaultPosition={{ x: window.innerWidth - 380, y: 70 }}
+                    defaultSize={{ width: 360, height: 480 }}
+                >
                     <ChatPanel
                         messages={messages}
                         currentUserId={currentUser.userId}
@@ -565,11 +643,27 @@ export function Meeting() {
                         onSendImage={handleSendImage}
                         onSendFile={handleSendFile}
                         onClose={() => setShowChat(false)}
+                        hideHeader
                     />
-                )}
+                </FloatingPanel>
 
-                {/* 成员面板 */}
-                {showMembers && (
+                {/* 成员面板 - 悬浮窗 */}
+                <FloatingPanel
+                    title={t('members.title', '成员')}
+                    icon={
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                    }
+                    badge={socketMembers.length}
+                    isOpen={showMembers}
+                    onClose={() => setShowMembers(false)}
+                    defaultPosition={{ x: window.innerWidth - 380, y: 70 }}
+                    defaultSize={{ width: 340, height: 520 }}
+                >
                     <MemberPanel
                         members={remoteUsers.map(userId => ({ userId, userName: remoteUserNames[userId], hasAudio: false, hasVideo: false, hasScreenShare: false }))}
                         memberStates={memberStates}
@@ -597,11 +691,19 @@ export function Meeting() {
                             console.log('🔇 全体静音');
                         }}
                         onStopAllVideo={() => {
-                            // TODO: 通过 Socket 广播全体关闭视频
+                            socketStopVideoAll();
                             console.log('📹 全体关闭视频');
                         }}
+                        // 等候室
+                        waitingList={waitingList}
+                        waitingRoomEnabled={waitingRoomEnabled}
+                        onToggleWaitingRoom={toggleWaitingRoom}
+                        onAdmitFromWaitingRoom={admitFromWaitingRoom}
+                        onRejectFromWaitingRoom={rejectFromWaitingRoom}
+                        onAdmitAllFromWaitingRoom={admitAllFromWaitingRoom}
+                        hideHeader
                     />
-                )}
+                </FloatingPanel>
             </div>
 
             {/* 底部工具栏 */}
@@ -615,7 +717,7 @@ export function Meeting() {
                 memberCount={remoteUsers.length + 1}
                 unreadCount={unreadCount}
                 isRecording={isRecording}
-                isRoomRecording={roomState.recording.isRecording}
+                isRoomRecording={roomState?.recording?.isRecording ?? false}
                 recordingTime={recordingTime}
                 canRecord={socketCanControl}  // 只有主持人/联席主持人可录制
                 onToggleMic={handleToggleMic}
@@ -664,7 +766,7 @@ export function Meeting() {
                 onClose={() => setShowEndMeeting(false)}
                 onEndMeeting={handleEndMeeting}
                 onLeaveMeeting={handleLeaveMeeting}
-                isHost={isHost}
+                isHost={socketIsHost || isHost}
             />
 
             {/* 布局选择器 */}

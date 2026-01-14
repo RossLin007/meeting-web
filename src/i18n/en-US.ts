@@ -187,6 +187,13 @@ const enUS = {
         stopAllVideo: 'Stop All Video',
     },
 
+    waitingRoom: {
+        title: 'Waiting Room',
+        greeting: 'Hello, {{name}}',
+        waiting: 'Please wait, the host will let you in shortly',
+        leave: 'Leave Waiting Room',
+    },
+
     chat: {
         title: 'Chat',
         placeholder: 'Type a message...',

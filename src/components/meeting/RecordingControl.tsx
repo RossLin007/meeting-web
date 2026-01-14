@@ -51,11 +51,10 @@ export function RecordingControl({
     // 非主持人只能看到录制状态，不能操作
     if (!isHost) {
         if (isRoomRecording) {
-            // 有人在录制中，显示录制状态
+            // 有人在录制中，显示录制状态（不显示时间）
             return (
                 <div className={clsx(styles.container, styles.recording, styles.viewOnly)}>
                     <span className={styles.indicator} />
-                    <span className={styles.time}>{formatTime(recordingTime)}</span>
                     <span className={styles.statusText}>{t('recording.recordingInProgress')}</span>
                 </div>
             );

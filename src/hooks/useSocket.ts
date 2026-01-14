@@ -12,6 +12,7 @@ export interface UseSocketOptions {
     onMeetingEnded?: () => void;
     onMutedByHost?: (by: string) => void;
     onVideoStoppedByHost?: (by: string) => void;
+    onStoppedAllVideo?: () => void;
 }
 
 export interface UseSocketReturn {
@@ -28,6 +29,11 @@ export interface UseSocketReturn {
     isLocked: boolean;
     isAllMuted: boolean;
     isRecording: boolean;
+
+    // 等候室状态
+    inWaitingRoom: boolean;
+    waitingRoomEnabled: boolean;
+    waitingList: Array<{ userId: string; userName: string; joinedAt: number }>;
 
     // 操作方法
     connect: () => void;
@@ -46,6 +52,7 @@ export interface UseSocketReturn {
     stopVideoMember: (targetId: string) => void;
     kickMember: (targetId: string, forever?: boolean) => void;
     muteAll: (allowSelfUnmute?: boolean) => void;
+    stopVideoAll: () => void;
     lockMeeting: (isLocked: boolean) => void;
     assignCoHost: (targetId: string) => void;
     transferHost: (newHostId: string) => void;
@@ -54,6 +61,12 @@ export interface UseSocketReturn {
     // 录制操作
     startRecording: (taskId: string) => void;
     stopRecording: () => void;
+
+    // 等候室操作
+    toggleWaitingRoom: (enabled: boolean) => void;
+    admitFromWaitingRoom: (targetId: string) => void;
+    rejectFromWaitingRoom: (targetId: string) => void;
+    admitAllFromWaitingRoom: () => void;
 }
 
 export function useSocket({
@@ -65,15 +78,18 @@ export function useSocket({
     onMeetingEnded,
     onMutedByHost,
     onVideoStoppedByHost,
+    onStoppedAllVideo,
 }: UseSocketOptions): UseSocketReturn {
     const [isConnected, setIsConnected] = useState(false);
     const [roomState, setRoomState] = useState<RoomState | null>(null);
+    const [inWaitingRoom, setInWaitingRoom] = useState(false);
+    const [waitingList, setWaitingList] = useState<Array<{ userId: string; userName: string; joinedAt: number }>>([]);
 
     // 用 ref 避免回调中的闭包问题
-    const callbacksRef = useRef({ onKicked, onMeetingEnded, onMutedByHost, onVideoStoppedByHost });
+    const callbacksRef = useRef({ onKicked, onMeetingEnded, onMutedByHost, onVideoStoppedByHost, onStoppedAllVideo });
     useEffect(() => {
-        callbacksRef.current = { onKicked, onMeetingEnded, onMutedByHost, onVideoStoppedByHost };
-    }, [onKicked, onMeetingEnded, onMutedByHost, onVideoStoppedByHost]);
+        callbacksRef.current = { onKicked, onMeetingEnded, onMutedByHost, onVideoStoppedByHost, onStoppedAllVideo };
+    }, [onKicked, onMeetingEnded, onMutedByHost, onVideoStoppedByHost, onStoppedAllVideo]);
 
     // 设置回调
     useEffect(() => {
@@ -158,7 +174,21 @@ export function useSocket({
                 } : prev);
             },
 
+            onRoomStoppedAllVideo: () => {
+                // 更新所有成员的视频状态
+                setRoomState(prev => {
+                    if (!prev) return prev;
+                    return {
+                        ...prev,
+                        members: prev.members.map(m => ({ ...m, isVideoOn: false })),
+                    };
+                });
+                // 调用传入的回调来关闭本地视频
+                callbacksRef.current.onStoppedAllVideo?.();
+            },
+
             onRoomHostChanged: ({ oldHostId, newHostId }) => {
+                console.log('👑 收到主持人变更事件:', { oldHostId, newHostId });
                 setRoomState(prev => {
                     if (!prev) return prev;
                     // 更新 hostId 和成员角色
@@ -171,6 +201,7 @@ export function useSocket({
                         }
                         return m;
                     });
+                    console.log('👑 更新后的成员角色:', updatedMembers.map(m => ({ userId: m.userId, role: m.role })));
                     return { ...prev, hostId: newHostId, members: updatedMembers };
                 });
             },
@@ -191,6 +222,36 @@ export function useSocket({
                     ...prev,
                     recording: { isRecording: false },
                 } : prev);
+            },
+
+            // 等候室回调
+            onWaitingRoomJoined: () => {
+                setInWaitingRoom(true);
+            },
+
+            onWaitingRoomAdmitted: () => {
+                setInWaitingRoom(false);
+            },
+
+            onWaitingRoomRejected: () => {
+                setInWaitingRoom(false);
+                // 被拒绝后可以导航离开
+            },
+
+            onWaitingRoomToggled: ({ enabled }) => {
+                setRoomState(prev => prev ? { ...prev, waitingRoomEnabled: enabled } : prev);
+            },
+
+            onWaitingRoomRequest: ({ userId: waiterId, userName: waiterName }) => {
+                // 有新人进入等候室
+                setWaitingList(prev => {
+                    if (prev.find(w => w.userId === waiterId)) return prev;
+                    return [...prev, { userId: waiterId, userName: waiterName, joinedAt: Date.now() }];
+                });
+            },
+
+            onWaitingRoomUpdated: ({ waitingList: list }) => {
+                setWaitingList(list);
             },
 
             onYouKicked: ({ forever }) => {
@@ -293,6 +354,10 @@ export function useSocket({
         socketService.muteAll(allowSelfUnmute);
     }, []);
 
+    const stopVideoAll = useCallback(() => {
+        socketService.stopVideoAll();
+    }, []);
+
     const lockMeeting = useCallback((locked: boolean) => {
         socketService.lockMeeting(locked);
     }, []);
@@ -318,6 +383,23 @@ export function useSocket({
         socketService.stopRecording();
     }, []);
 
+    // 等候室操作
+    const toggleWaitingRoom = useCallback((enabled: boolean) => {
+        socketService.toggleWaitingRoom(enabled);
+    }, []);
+
+    const admitFromWaitingRoom = useCallback((targetId: string) => {
+        socketService.admitFromWaitingRoom(targetId);
+    }, []);
+
+    const rejectFromWaitingRoom = useCallback((targetId: string) => {
+        socketService.rejectFromWaitingRoom(targetId);
+    }, []);
+
+    const admitAllFromWaitingRoom = useCallback(() => {
+        socketService.admitAllFromWaitingRoom();
+    }, []);
+
     return {
         isConnected,
         roomState,
@@ -329,6 +411,11 @@ export function useSocket({
         isLocked,
         isAllMuted,
         isRecording,
+        // 等候室状态
+        inWaitingRoom,
+        waitingRoomEnabled: roomState?.waitingRoomEnabled ?? false,
+        waitingList,
+        // 操作方法
         connect,
         disconnect,
         joinRoom,
@@ -341,12 +428,18 @@ export function useSocket({
         stopVideoMember,
         kickMember,
         muteAll,
+        stopVideoAll,
         lockMeeting,
         assignCoHost,
         transferHost,
         endMeeting,
         startRecording,
         stopRecording,
+        // 等候室操作
+        toggleWaitingRoom,
+        admitFromWaitingRoom,
+        rejectFromWaitingRoom,
+        admitAllFromWaitingRoom,
     };
 }
 

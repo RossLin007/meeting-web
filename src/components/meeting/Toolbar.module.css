@@ -10,13 +10,23 @@
 }
 
 .leftSection,
-.centerSection,
 .rightSection {
     display: flex;
     gap: var(--spacing-1);
+    min-width: 140px;
+    /* 确保左右区域等宽 */
+}
+
+.leftSection {
+    justify-content: flex-start;
+}
+
+.rightSection {
+    justify-content: flex-end;
 }
 
 .centerSection {
+    display: flex;
     flex: 1;
     justify-content: center;
     gap: var(--spacing-2);

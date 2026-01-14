@@ -41,6 +41,7 @@ export interface SocketCallbacks {
     onMemberRoleChanged?: (data: { userId: string; role: string; by: string }) => void;
     onRoomLocked?: (data: { isLocked: boolean; by: string }) => void;
     onRoomMutedAll?: (data: { by: string; allowSelfUnmute: boolean }) => void;
+    onRoomStoppedAllVideo?: (data: { by: string }) => void;
     onRoomHostChanged?: (data: { oldHostId: string; newHostId: string; by: string }) => void;
     onRoomEnded?: (data: { by: string }) => void;
     onRecordingStarted?: (data: { taskId: string; by: string }) => void;
@@ -48,6 +49,13 @@ export interface SocketCallbacks {
     onYouMuted?: (data: { by: string }) => void;
     onYouVideoStopped?: (data: { by: string }) => void;
     onYouKicked?: (data: { by: string; forever: boolean }) => void;
+    // 等候室回调
+    onWaitingRoomJoined?: (data: { message: string }) => void;
+    onWaitingRoomAdmitted?: (data: { message: string }) => void;
+    onWaitingRoomRejected?: (data: { message: string }) => void;
+    onWaitingRoomToggled?: (data: { enabled: boolean; by: string }) => void;
+    onWaitingRoomRequest?: (data: { userId: string; userName: string; waitingCount: number }) => void;
+    onWaitingRoomUpdated?: (data: { waitingList: Array<{ userId: string; userName: string; joinedAt: number }> }) => void;
     onError?: (data: { message: string }) => void;
     onConnect?: () => void;
     onDisconnect?: () => void;
@@ -139,6 +147,11 @@ class SocketService {
             this.callbacks.onRoomMutedAll?.(data);
         });
 
+        this.socket.on('room:stopped_all_video', (data) => {
+            console.log('📹 全体关闭视频:', data);
+            this.callbacks.onRoomStoppedAllVideo?.(data);
+        });
+
         this.socket.on('room:host_changed', (data) => {
             console.log('👑 主持人变更:', data);
             this.callbacks.onRoomHostChanged?.(data);
@@ -200,6 +213,37 @@ class SocketService {
         this.socket.on('recording:stopped', (data) => {
             console.log('⬜ 录制停止:', data);
             this.callbacks.onRecordingStopped?.(data);
+        });
+
+        // 等候室事件
+        this.socket.on('waiting_room:joined', (data) => {
+            console.log('⏳ 进入等候室:', data);
+            this.callbacks.onWaitingRoomJoined?.(data);
+        });
+
+        this.socket.on('waiting_room:admitted', (data) => {
+            console.log('✅ 被允许进入:', data);
+            this.callbacks.onWaitingRoomAdmitted?.(data);
+        });
+
+        this.socket.on('waiting_room:rejected', (data) => {
+            console.log('❌ 被拒绝进入:', data);
+            this.callbacks.onWaitingRoomRejected?.(data);
+        });
+
+        this.socket.on('waiting_room:toggled', (data) => {
+            console.log('🚪 等候室状态:', data);
+            this.callbacks.onWaitingRoomToggled?.(data);
+        });
+
+        this.socket.on('waiting_room:request', (data) => {
+            console.log('🔔 有人等候:', data);
+            this.callbacks.onWaitingRoomRequest?.(data);
+        });
+
+        this.socket.on('waiting_room:updated', (data) => {
+            console.log('📋 等候列表更新:', data);
+            this.callbacks.onWaitingRoomUpdated?.(data);
         });
 
         // 错误
@@ -328,6 +372,16 @@ class SocketService {
     }
 
     /**
+     * 全体关闭视频
+     */
+    stopVideoAll(): void {
+        if (!this.socket || !this.currentMeetingId) return;
+        this.socket.emit('host:stop_all_video', {
+            meetingId: this.currentMeetingId,
+        });
+    }
+
+    /**
      * 锁定会议
      */
     lockMeeting(isLocked: boolean): void {
@@ -389,6 +443,51 @@ class SocketService {
     stopRecording(): void {
         if (!this.socket || !this.currentMeetingId) return;
         this.socket.emit('recording:stop', {
+            meetingId: this.currentMeetingId,
+        });
+    }
+
+    // ========== 等候室操作 ==========
+
+    /**
+     * 开启/关闭等候室
+     */
+    toggleWaitingRoom(enabled: boolean): void {
+        if (!this.socket || !this.currentMeetingId) return;
+        this.socket.emit('waiting_room:toggle', {
+            meetingId: this.currentMeetingId,
+            enabled,
+        });
+    }
+
+    /**
+     * 允许参与者进入
+     */
+    admitFromWaitingRoom(targetId: string): void {
+        if (!this.socket || !this.currentMeetingId) return;
+        this.socket.emit('waiting_room:admit', {
+            meetingId: this.currentMeetingId,
+            targetId,
+        });
+    }
+
+    /**
+     * 拒绝参与者进入
+     */
+    rejectFromWaitingRoom(targetId: string): void {
+        if (!this.socket || !this.currentMeetingId) return;
+        this.socket.emit('waiting_room:reject', {
+            meetingId: this.currentMeetingId,
+            targetId,
+        });
+    }
+
+    /**
+     * 允许所有等候者进入
+     */
+    admitAllFromWaitingRoom(): void {
+        if (!this.socket || !this.currentMeetingId) return;
+        this.socket.emit('waiting_room:admit_all', {
             meetingId: this.currentMeetingId,
         });
     }
