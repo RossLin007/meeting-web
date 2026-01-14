@@ -99,6 +99,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 return;
             }
 
+            // 检查 URL 是否包含 OAuth 错误
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            const errorDescription = urlParams.get('error_description');
+
+            if (error) {
+                console.error('❌ OAuth error:', error, '-', errorDescription);
+                callbackProcessedRef.current = true;
+                // 清理 URL 并重定向到登录页
+                window.history.replaceState({}, '', '/login');
+                setIsLoading(false);
+                return;
+            }
+
             // 检查是否是 SSO 回调
             if (uniAuthClient.isSSOCallback()) {
                 callbackProcessedRef.current = true; // 标记为已处理

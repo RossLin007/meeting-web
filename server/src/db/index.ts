@@ -265,6 +265,30 @@ const runMigrations = (): void => {
         `);
 
         console.log('✅ 联系人表已就绪');
+
+        // 迁移 6: 增强录制表 - 添加可见性和 TRTC 任务信息
+        const recordingColumns = db.pragma('table_info(recordings)') as Array<{ name: string }>;
+        const recordingColumnNames = new Set(recordingColumns.map(col => col.name));
+
+        if (!recordingColumnNames.has('visibility')) {
+            console.log('🔄 运行迁移：增强录制表...');
+            db.exec(`ALTER TABLE recordings ADD COLUMN visibility TEXT DEFAULT 'host_only' CHECK(visibility IN ('host_only', 'all'))`);
+            db.exec(`ALTER TABLE recordings ADD COLUMN task_id TEXT`);
+            db.exec(`ALTER TABLE recordings ADD COLUMN cos_file_key TEXT`);
+            db.exec(`ALTER TABLE recordings ADD COLUMN title TEXT`);
+            console.log('✅ 迁移完成：录制表已增强 (visibility, task_id, cos_file_key, title)');
+        }
+
+        // 创建录制表索引
+        db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_recordings_meeting 
+            ON recordings(meeting_id)
+        `);
+        db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_recordings_task 
+            ON recordings(task_id)
+        `);
+        console.log('✅ 录制表索引已就绪');
     } catch (error) {
         console.error('❌ 数据库迁移失败:', error);
         throw error;

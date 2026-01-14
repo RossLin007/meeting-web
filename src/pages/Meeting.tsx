@@ -71,6 +71,7 @@ export function Meeting() {
         timestamp: number;
     } | undefined>(undefined);
     const [hasShownRecordingNotice, setHasShownRecordingNotice] = useState(false);
+    const [isHandRaised, setIsHandRaised] = useState(false);
 
     // 后端 API 基础 URL
     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -200,18 +201,19 @@ export function Meeting() {
 
     // Socket.io 状态同步 Hook（新）
     const {
-        isConnected: socketConnected,
+        isConnected: _socketConnected,
         members: socketMembers,
         hostId: socketHostId,
         isHost: socketIsHost,
         canControl: socketCanControl,
-        isRecording: socketIsRecording,
+        isRecording: _socketIsRecording,
         inWaitingRoom,
         waitingList,
         waitingRoomEnabled,
         broadcastAudioState: socketBroadcastAudioState,
         broadcastVideoState: socketBroadcastVideoState,
         broadcastScreenShareState: socketBroadcastScreenShareState,
+        broadcastHandRaised: socketBroadcastHandRaised,
         endMeeting: socketEndMeeting,
         muteAll: socketMuteAll,
         stopVideoAll: socketStopVideoAll,
@@ -239,7 +241,7 @@ export function Meeting() {
         onMutedByHost: async (by) => {
             console.log('🔇 被主持人静音:', by);
             try {
-                await toggleAudio(false);
+                await toggleAudio();
                 setMicOn(false);
                 imBroadcastAudioState(false);
                 socketBroadcastAudioState(false);
@@ -487,9 +489,9 @@ export function Meeting() {
         isMicOn,
         isScreenSharing,
         broadcastMeetingEnd,
-        broadcastAudioState,
-        broadcastVideoState,
-        broadcastScreenShareState,
+        broadcastAudioState: async (isOn: boolean) => { socketBroadcastAudioState(isOn); },
+        broadcastVideoState: async (isOn: boolean) => { socketBroadcastVideoState(isOn); },
+        broadcastScreenShareState: async (isSharing: boolean) => { socketBroadcastScreenShareState(isSharing); },
     });
 
     // 同步 handleLeaveMeeting 到 ref（避免循环依赖）
@@ -509,11 +511,11 @@ export function Meeting() {
     // 加入会议时检测录制状态，显示提示
     useEffect(() => {
         if (!hasShownRecordingNotice && roomState?.recording?.isRecording) {
-            addToast({
-                type: 'warning',
-                message: t('recording.meetingIsRecording', '会议正在录制中，您的音视频将被记录'),
-                duration: 5000,
-            });
+            addToast(
+                t('recording.meetingIsRecording', '会议正在录制中，您的音视频将被记录'),
+                'warning',
+                5000
+            );
             setHasShownRecordingNotice(true);
         }
     }, [roomState?.recording?.isRecording, hasShownRecordingNotice, addToast, t]);
@@ -716,6 +718,13 @@ export function Meeting() {
                 showMembers={showMembers}
                 memberCount={remoteUsers.length + 1}
                 unreadCount={unreadCount}
+                isHandRaised={isHandRaised}
+                onToggleHandRaise={() => {
+                    const newState = !isHandRaised;
+                    setIsHandRaised(newState);
+                    socketBroadcastHandRaised(newState);
+                    console.log(newState ? '✋ 举手' : '👇 放下手');
+                }}
                 isRecording={isRecording}
                 isRoomRecording={roomState?.recording?.isRecording ?? false}
                 recordingTime={recordingTime}
@@ -764,7 +773,11 @@ export function Meeting() {
             <EndMeetingModal
                 isOpen={showEndMeeting}
                 onClose={() => setShowEndMeeting(false)}
-                onEndMeeting={handleEndMeeting}
+                onEndMeeting={() => {
+                    // 同时通过 Socket.io 广播结束会议
+                    socketEndMeeting();
+                    handleEndMeeting();
+                }}
                 onLeaveMeeting={handleLeaveMeeting}
                 isHost={socketIsHost || isHost}
             />

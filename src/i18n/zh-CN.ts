@@ -115,6 +115,10 @@ const zhCN = {
         poor: '较差',
         sharingScreen: '正在共享屏幕...',
         screenShare: '的屏幕共享',
+        raiseHand: '举手',
+        lowerHand: '放下手',
+        handRaised: '已举手',
+        lowerOthersHand: '取消举手',
     },
 
     createMeeting: {
@@ -192,6 +196,34 @@ const zhCN = {
         greeting: '您好，{{name}}',
         waiting: '请稍候，主持人将很快允许您进入会议',
         leave: '离开等候室',
+    },
+
+    preJoin: {
+        title: '准备加入会议',
+        checkDevices: '检查您的设备',
+        displayName: '显示名称',
+        displayNamePlaceholder: '输入您的名称',
+        camera: '摄像头',
+        microphone: '麦克风',
+        cameraOn: '开启摄像头',
+        cameraOff: '关闭摄像头',
+        micOn: '开启麦克风',
+        micOff: '关闭麦克风',
+        joinNow: '加入会议',
+        joining: '加入中...',
+        cancel: '取消',
+    },
+
+    password: {
+        title: '会议需要密码',
+        subtitle: '请输入密码以加入此会议',
+        placeholder: '输入会议密码',
+        required: '请输入会议密码',
+        incorrect: '密码错误，请重试',
+        verifyFailed: '验证失败，请稍后重试',
+        verifying: '验证中...',
+        join: '加入会议',
+        roomId: '会议号',
     },
 
     chat: {
@@ -304,6 +336,34 @@ const zhCN = {
         daysAgo: '{{count}} 天前活跃',
         batchInvite: '批量邀请',
         selectedCount: '已选择 {{count}} 人',
+    },
+
+    recordings: {
+        title: '会议录制',
+        pageTitle: '录制管理',
+        noRecordings: '暂无录制',
+        noRecordingsDesc: '当您录制会议时，录制文件将显示在这里',
+        status: {
+            recording: '录制中',
+            completed: '已完成',
+            failed: '录制失败',
+        },
+        visibility: {
+            hostOnly: '仅主持人可见',
+            all: '全员可见',
+            setPublic: '设为全员可见',
+            setPrivate: '设为仅主持人可见',
+        },
+        duration: '时长',
+        startedAt: '开始时间',
+        startedBy: '录制者',
+        viewRecording: '查看录制',
+        playRecording: '播放录制',
+        downloadRecording: '下载录制',
+        deleteRecording: '删除录制',
+        deleteConfirm: '确定要删除此录制吗？此操作不可恢复。',
+        fileSize: '文件大小',
+        hasRecordings: '有 {{count}} 个录制',
     },
 };
 

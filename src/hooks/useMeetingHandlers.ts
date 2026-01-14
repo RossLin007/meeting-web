@@ -165,10 +165,37 @@ export function useMeetingHandlers({
 
     // 离开会议
     const handleLeaveMeeting = useCallback(async () => {
-        await leaveRoom();
-        await leaveGroup();
-        reset();
+        console.log('🚪 [handleLeaveMeeting] 开始离开会议...');
+
+        try {
+            console.log('   1. 离开 TRTC 房间...');
+            await leaveRoom();
+            console.log('   ✓ TRTC 房间已离开');
+        } catch (error) {
+            console.error('   ✗ 离开 TRTC 房间失败:', error);
+            // 继续执行，不阻断
+        }
+
+        try {
+            console.log('   2. 离开 IM 群组...');
+            await leaveGroup();
+            console.log('   ✓ IM 群组已离开');
+        } catch (error) {
+            console.error('   ✗ 离开 IM 群组失败:', error);
+            // 继续执行，不阻断
+        }
+
+        try {
+            console.log('   3. 重置状态...');
+            reset();
+            console.log('   ✓ 状态已重置');
+        } catch (error) {
+            console.error('   ✗ 重置状态失败:', error);
+        }
+
+        console.log('   4. 导航到首页...');
         navigate('/');
+        console.log('   ✓ 导航指令已执行');
     }, [leaveRoom, leaveGroup, reset, navigate]);
 
     // 结束会议（仅主持人）

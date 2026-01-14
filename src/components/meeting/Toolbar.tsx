@@ -1,6 +1,6 @@
 // 智会 - 底部工具栏组件
 
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import styles from './Toolbar.module.css';
@@ -111,13 +111,40 @@ const RecordingIcon = () => (
     </svg>
 );
 
-// 布局图标
 const LayoutIcon = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <rect x="3" y="3" width="7" height="7" rx="1" />
         <rect x="14" y="3" width="7" height="7" rx="1" />
         <rect x="3" y="14" width="7" height="7" rx="1" />
         <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+);
+
+// 举手图标
+const HandRaiseIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2" />
+        <path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v6" />
+        <path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8" />
+        <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+    </svg>
+);
+
+const HandRaisedIcon = () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
+        <path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2" />
+        <path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v6" />
+        <path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8" />
+        <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+    </svg>
+);
+
+// 更多菜单图标
+const MoreIcon = () => (
+    <svg viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="12" cy="5" r="2" />
+        <circle cx="12" cy="12" r="2" />
+        <circle cx="12" cy="19" r="2" />
     </svg>
 );
 
@@ -130,6 +157,9 @@ interface ToolbarProps {
     showMembers: boolean;
     memberCount: number;
     unreadCount?: number;  // 未读消息数
+    // 举手相关
+    isHandRaised: boolean;
+    onToggleHandRaise: () => void;
     // 录制相关
     isRecording: boolean;
     isRoomRecording: boolean;  // 房间是否正在录制（其他人录制时也显示）
@@ -158,6 +188,8 @@ function ToolbarComponent({
     showMembers,
     memberCount,
     unreadCount = 0,
+    isHandRaised,
+    onToggleHandRaise,
     isRecording,
     isRoomRecording,
     recordingTime,
@@ -176,6 +208,7 @@ function ToolbarComponent({
     onLayoutClick,
 }: ToolbarProps) {
     const { t } = useTranslation();
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
 
     // 格式化录制时间
     const formatTime = (seconds: number) => {
@@ -266,6 +299,18 @@ function ToolbarComponent({
                     <span className={styles.label}>{t('meeting.chat')}</span>
                 </button>
 
+                {/* 举手 */}
+                <button
+                    className={clsx(styles.button, isHandRaised && styles.active)}
+                    onClick={onToggleHandRaise}
+                    title={isHandRaised ? t('meeting.lowerHand') : t('meeting.raiseHand')}
+                >
+                    {isHandRaised ? <HandRaisedIcon /> : <HandRaiseIcon />}
+                    <span className={styles.label}>
+                        {isHandRaised ? t('meeting.lowerHand') : t('meeting.raiseHand')}
+                    </span>
+                </button>
+
                 {/* 录制 - 只有主持人/联席主持人可见 */}
                 {canRecord && (
                     <button
@@ -291,9 +336,9 @@ function ToolbarComponent({
                     </button>
                 )}
 
-                {/* 邀请 */}
+                {/* 邀请 - 桌面端显示 */}
                 <button
-                    className={styles.button}
+                    className={clsx(styles.button, styles.desktopOnly)}
                     onClick={onInvite}
                     title={t('invite.title')}
                 >
@@ -301,10 +346,10 @@ function ToolbarComponent({
                     <span className={styles.label}>{t('meeting.invite')}</span>
                 </button>
 
-                {/* 布局 */}
+                {/* 布局 - 桌面端显示 */}
                 {onLayoutClick && (
                     <button
-                        className={styles.button}
+                        className={clsx(styles.button, styles.desktopOnly)}
                         onClick={onLayoutClick}
                         title={t('layout.title')}
                     >
@@ -313,15 +358,46 @@ function ToolbarComponent({
                     </button>
                 )}
 
-                {/* 设置 */}
+                {/* 设置 - 桌面端显示 */}
                 <button
-                    className={styles.button}
+                    className={clsx(styles.button, styles.desktopOnly)}
                     onClick={onSettings}
                     title={t('settings.title')}
                 >
                     <SettingsIcon />
                     <span className={styles.label}>{t('settings.title')}</span>
                 </button>
+
+                {/* 更多 - 移动端显示 */}
+                <div className={clsx(styles.moreWrapper, styles.mobileOnly)}>
+                    <button
+                        className={clsx(styles.button, showMoreMenu && styles.active)}
+                        onClick={() => setShowMoreMenu(!showMoreMenu)}
+                        title={t('meeting.more')}
+                    >
+                        <MoreIcon />
+                        <span className={styles.label}>{t('meeting.more')}</span>
+                    </button>
+
+                    {showMoreMenu && (
+                        <div className={styles.moreDropdown}>
+                            <button onClick={() => { onInvite(); setShowMoreMenu(false); }}>
+                                <InviteIcon />
+                                <span>{t('meeting.invite')}</span>
+                            </button>
+                            {onLayoutClick && (
+                                <button onClick={() => { onLayoutClick(); setShowMoreMenu(false); }}>
+                                    <LayoutIcon />
+                                    <span>{t('layout.title')}</span>
+                                </button>
+                            )}
+                            <button onClick={() => { onSettings(); setShowMoreMenu(false); }}>
+                                <SettingsIcon />
+                                <span>{t('settings.title')}</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className={styles.rightSection}>

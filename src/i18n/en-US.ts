@@ -115,6 +115,10 @@ const enUS = {
         poor: 'Poor',
         sharingScreen: 'Sharing screen...',
         screenShare: "'s Screen Share",
+        raiseHand: 'Raise Hand',
+        lowerHand: 'Lower Hand',
+        handRaised: 'Hand Raised',
+        lowerOthersHand: 'Lower Hand',
     },
 
     createMeeting: {
@@ -192,6 +196,34 @@ const enUS = {
         greeting: 'Hello, {{name}}',
         waiting: 'Please wait, the host will let you in shortly',
         leave: 'Leave Waiting Room',
+    },
+
+    preJoin: {
+        title: 'Ready to Join',
+        checkDevices: 'Check your devices',
+        displayName: 'Display Name',
+        displayNamePlaceholder: 'Enter your name',
+        camera: 'Camera',
+        microphone: 'Microphone',
+        cameraOn: 'Camera On',
+        cameraOff: 'Camera Off',
+        micOn: 'Mic On',
+        micOff: 'Mic Off',
+        joinNow: 'Join Meeting',
+        joining: 'Joining...',
+        cancel: 'Cancel',
+    },
+
+    password: {
+        title: 'Password Required',
+        subtitle: 'Enter the password to join this meeting',
+        placeholder: 'Enter meeting password',
+        required: 'Please enter the meeting password',
+        incorrect: 'Incorrect password, please try again',
+        verifyFailed: 'Verification failed, please try again',
+        verifying: 'Verifying...',
+        join: 'Join Meeting',
+        roomId: 'Meeting ID',
     },
 
     chat: {
@@ -304,6 +336,34 @@ const enUS = {
         daysAgo: '{{count}} days ago',
         batchInvite: 'Batch Invite',
         selectedCount: '{{count}} selected',
+    },
+
+    recordings: {
+        title: 'Meeting Recording',
+        pageTitle: 'Recordings',
+        noRecordings: 'No Recordings',
+        noRecordingsDesc: 'When you record meetings, the recordings will appear here',
+        status: {
+            recording: 'Recording',
+            completed: 'Completed',
+            failed: 'Failed',
+        },
+        visibility: {
+            hostOnly: 'Host Only',
+            all: 'Everyone',
+            setPublic: 'Make visible to everyone',
+            setPrivate: 'Make visible to host only',
+        },
+        duration: 'Duration',
+        startedAt: 'Started At',
+        startedBy: 'Recorded By',
+        viewRecording: 'View Recording',
+        playRecording: 'Play Recording',
+        downloadRecording: 'Download',
+        deleteRecording: 'Delete',
+        deleteConfirm: 'Are you sure you want to delete this recording? This action cannot be undone.',
+        fileSize: 'File Size',
+        hasRecordings: '{{count}} recording(s)',
     },
 };
 

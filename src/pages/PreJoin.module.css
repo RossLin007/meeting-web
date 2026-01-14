@@ -1,0 +1,207 @@
+/* 加入前预览页面样式 */
+
+.container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: var(--spacing-4);
+    background: linear-gradient(135deg, var(--color-bg-page, #0f172a) 0%, var(--color-bg-card, #1e293b) 100%);
+}
+
+.card {
+    width: 100%;
+    max-width: 480px;
+    padding: var(--spacing-6);
+    background-color: var(--color-bg-card, #1e293b);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+.title {
+    margin: 0 0 var(--spacing-2);
+    font-size: var(--text-2xl);
+    font-weight: 700;
+    color: var(--color-text-primary, white);
+    text-align: center;
+}
+
+.subtitle {
+    margin: 0 0 var(--spacing-5);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary, #94a3b8);
+    text-align: center;
+}
+
+/* 视频预览 */
+.videoPreview {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin-bottom: var(--spacing-5);
+    background-color: var(--color-bg-page, #0f172a);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    /* 镜像显示 */
+}
+
+.cameraOff {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2);
+    width: 100%;
+    height: 100%;
+    color: var(--color-text-secondary, #94a3b8);
+}
+
+.cameraOff svg {
+    width: 48px;
+    height: 48px;
+}
+
+/* 设备控制按钮 */
+.deviceControls {
+    position: absolute;
+    bottom: var(--spacing-3);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: var(--spacing-3);
+}
+
+.deviceBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border: none;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(8px);
+}
+
+.deviceBtn:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+.deviceBtn svg {
+    width: 22px;
+    height: 22px;
+}
+
+.deviceBtn.off {
+    background-color: var(--color-danger, #ef4444);
+}
+
+.deviceBtn.off:hover {
+    background-color: #dc2626;
+}
+
+/* 输入框 */
+.inputGroup {
+    margin-bottom: var(--spacing-5);
+}
+
+.label {
+    display: block;
+    margin-bottom: var(--spacing-2);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-text-primary, white);
+}
+
+.input {
+    width: 100%;
+    padding: var(--spacing-3) var(--spacing-4);
+    font-size: var(--text-base);
+    color: var(--color-text-primary, white);
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-md);
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+.input:focus {
+    border-color: var(--color-primary, #3b82f6);
+}
+
+.input::placeholder {
+    color: var(--color-text-secondary, #94a3b8);
+}
+
+/* 操作按钮 */
+.actions {
+    display: flex;
+    gap: var(--spacing-3);
+}
+
+.cancelBtn,
+.joinBtn {
+    flex: 1;
+    padding: var(--spacing-3) var(--spacing-4);
+    font-size: var(--text-base);
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cancelBtn {
+    color: var(--color-text-primary, white);
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.cancelBtn:hover:not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.joinBtn {
+    color: white;
+    background: linear-gradient(135deg, var(--color-primary, #3b82f6) 0%, var(--color-primary-dark, #2563eb) 100%);
+}
+
+.joinBtn:hover:not(:disabled) {
+    filter: brightness(1.1);
+}
+
+.joinBtn:disabled,
+.cancelBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 响应式 */
+@media (max-width: 480px) {
+    .card {
+        padding: var(--spacing-4);
+    }
+
+    .title {
+        font-size: var(--text-xl);
+    }
+
+    .deviceBtn {
+        width: 40px;
+        height: 40px;
+    }
+
+    .deviceBtn svg {
+        width: 18px;
+        height: 18px;
+    }
+}

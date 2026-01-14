@@ -14,7 +14,7 @@ import { ContactDetailCard } from '@/components/contacts/ContactDetailCard';
 import { QuickActions } from '@/components/home';
 import {
     HomeIcon, CalendarIcon, UsersIcon, SettingsIcon, VideoIcon,
-    ClockIcon, LogoutIcon, GridIcon, ListIcon
+    ClockIcon, LogoutIcon, GridIcon, ListIcon, FilmIcon
 } from '@/components/icons';
 import type { ScheduleMeetingFormData, MeetingListItem, MeetingStatus, Contact, ContactGroup } from '@/types';
 import styles from './Home.module.css';
@@ -504,12 +504,27 @@ export function Home() {
                                                         <span className={styles.hostBadge}>{t('home.host') || '主持人'}</span>
                                                     )}
                                                 </div>
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => navigate(`/meeting/${meeting.roomId}`)}
-                                                >
-                                                    {meeting.status === 'ongoing' ? t('home.join') : t('home.start')}
-                                                </Button>
+                                                <div className={styles.cardButtons}>
+                                                    {/* 录制入口 - 仅主持人显示 */}
+                                                    {meeting.isHost && (
+                                                        <button
+                                                            className={styles.recordingBtn}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                navigate(`/recordings?meetingId=${meeting.roomId}`);
+                                                            }}
+                                                            title={t('recordings.viewRecording')}
+                                                        >
+                                                            <FilmIcon />
+                                                        </button>
+                                                    )}
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => navigate(`/meeting/${meeting.roomId}`)}
+                                                    >
+                                                        {meeting.status === 'ongoing' ? t('home.join') : t('home.start')}
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -596,6 +611,19 @@ export function Home() {
                                             </div>
                                         </div>
                                         <div className={styles.meetingListActions}>
+                                            {/* 录制入口 - 仅主持人且已结束的会议显示 */}
+                                            {meeting.isHost && meeting.status === 'ended' && (
+                                                <button
+                                                    className={styles.recordingBtn}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigate(`/recordings?meetingId=${meeting.roomId}`);
+                                                    }}
+                                                    title={t('recordings.viewRecording')}
+                                                >
+                                                    <FilmIcon />
+                                                </button>
+                                            )}
                                             {meeting.status === 'ongoing' && (
                                                 <Button
                                                     size="sm"
@@ -613,16 +641,7 @@ export function Home() {
                                                     {meeting.isHost ? t('home.startMeeting') : t('home.join')}
                                                 </Button>
                                             )}
-                                            {meeting.status === 'ended' && meeting.hasRecording && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => console.log('View recording:', meeting.roomId)}
-                                                >
-                                                    {t('home.viewRecording')}
-                                                </Button>
-                                            )}
-                                            {meeting.status === 'ended' && !meeting.hasRecording && (
+                                            {meeting.status === 'ended' && (
                                                 <Button
                                                     size="sm"
                                                     variant="secondary"

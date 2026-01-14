@@ -3,6 +3,7 @@
 import { Server, Socket } from 'socket.io';
 import { getDatabase } from '../db';
 import { canPerformAction, isAdminRole, type MeetingRole } from './permissions';
+import recordingService from '../services/recording';
 
 // 类型定义
 interface MemberState {
@@ -786,13 +787,40 @@ export function registerHandlers(io: Server, socket: Socket): void {
     /**
      * 结束会议
      */
-    socket.on('host:end', (data: { meetingId: string }) => {
+    socket.on('host:end', async (data: { meetingId: string }) => {
         const { meetingId } = data;
         const role = getUserRole(meetingId, userId);
 
         if (!canPerformAction(role, 'end_meeting')) {
             socket.emit('error', { message: '无权限执行此操作' });
             return;
+        }
+
+        const state = roomStates.get(meetingId);
+
+        // 如果正在录制，先停止录制
+        if (state?.recording?.isRecording) {
+            console.log(`🔴 会议结束，自动停止录制: ${meetingId}`);
+            try {
+                const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+                const result = await recordingService.stopCloudRecording({
+                    sdkAppId: SDK_APP_ID,
+                    roomId: Number(meetingId),
+                });
+
+                if (result.success && result.taskId) {
+                    // 更新数据库中的录制记录
+                    await recordingService.updateRecordingInDB({
+                        taskId: result.taskId,
+                        status: 'completed',
+                    });
+                    console.log(`✅ 录制已停止: ${result.taskId}`);
+                } else {
+                    console.log(`⚠️ 停止录制失败: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('❌ 自动停止录制出错:', error);
+            }
         }
 
         // 更新数据库
@@ -839,7 +867,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
         console.log(`🔴 ${userId} 开始录制`);
     });
 
-    socket.on('recording:stop', (data: { meetingId: string }) => {
+    socket.on('recording:stop', async (data: { meetingId: string }) => {
         const { meetingId } = data;
         const role = getUserRole(meetingId, userId);
 
@@ -850,6 +878,31 @@ export function registerHandlers(io: Server, socket: Socket): void {
 
         const state = roomStates.get(meetingId);
         if (!state) return;
+
+        // 调用 TRTC 停止录制 API
+        if (state.recording?.isRecording && state.recording?.taskId) {
+            console.log(`🛑 停止云录制: ${meetingId}, taskId: ${state.recording.taskId}`);
+            try {
+                const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+                const result = await recordingService.stopCloudRecording({
+                    sdkAppId: SDK_APP_ID,
+                    roomId: Number(meetingId),
+                });
+
+                if (result.success && result.taskId) {
+                    // 更新数据库中的录制记录
+                    await recordingService.updateRecordingInDB({
+                        taskId: result.taskId,
+                        status: 'completed',
+                    });
+                    console.log(`✅ 云录制已停止: ${result.taskId}`);
+                } else {
+                    console.log(`⚠️ 停止云录制失败: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('❌ 停止云录制出错:', error);
+            }
+        }
 
         state.recording = { isRecording: false };
 

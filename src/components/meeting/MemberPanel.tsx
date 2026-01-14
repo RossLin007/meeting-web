@@ -13,6 +13,8 @@ interface MemberInfo {
     isHost: boolean;
     isMuted: boolean;
     isCameraOff: boolean;
+    isHandRaised?: boolean;
+    isCoHost?: boolean;
 }
 
 interface MemberPanelProps {
@@ -133,6 +135,13 @@ const EditIcon = () => (
     </svg>
 );
 
+// 举手图标
+const HandRaiseIcon = () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" width="16" height="16">
+        <path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v6M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+    </svg>
+);
+
 function MemberPanelComponent({
     members,
     memberStates,
@@ -183,6 +192,7 @@ function MemberPanelComponent({
                 isCoHost: m.role === 'cohost',
                 isMuted: !m.isAudioOn,
                 isCameraOff: !m.isVideoOn,
+                isHandRaised: m.isHandRaised,
             }));
         }
 
@@ -195,6 +205,7 @@ function MemberPanelComponent({
                 isCoHost: false,
                 isMuted: !isMicOn,
                 isCameraOff: !isCameraOn,
+                isHandRaised: false,
             },
             ...members.map((m) => {
                 const imState = memberStates?.get(m.userId);
@@ -205,6 +216,7 @@ function MemberPanelComponent({
                     isCoHost: false,
                     isMuted: imState ? !imState.isAudioOn : !m.hasAudio,
                     isCameraOff: imState ? !imState.isVideoOn : !m.hasVideo,
+                    isHandRaised: false,
                 };
             }),
         ];
@@ -378,6 +390,11 @@ function MemberPanelComponent({
                                 <span className={styles.coHostBadge}>
                                     <CrownIcon />
                                     {t('members.cohost', '联席主持人')}
+                                </span>
+                            )}
+                            {member.isHandRaised && (
+                                <span className={styles.handRaisedBadge} title={t('meeting.handRaised')}>
+                                    <HandRaiseIcon />
                                 </span>
                             )}
                         </div>

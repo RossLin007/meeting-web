@@ -17,10 +17,12 @@ const config = {
         secretId: process.env.TENCENT_SECRET_ID || '',
         secretKey: process.env.TENCENT_SECRET_KEY || '',
     },
-    region: 'ap-singapore',  // 国际站区域
+    region: 'ap-singapore',  // 国际站必须使用新加坡区域作为接入点
+    // region: 'ap-hongkong',      // 国际站区域 (User Request)
     profile: {
         httpProfile: {
             endpoint: 'trtc.intl.tencentcloudapi.com',  // 国际站 API 端点
+            // endpoint: 'trtc.tencentcloudapi.com',           // 通用 API 端点
         },
     },
 };
@@ -48,6 +50,7 @@ interface StartRecordingParams {
     recordUserId: string;  // 录制机器人用户 ID
     userSig: string;
     useMixStream?: boolean;  // 是否使用混流录制（多人时使用）
+    subscribeUserIds?: string[];  // 要订阅的用户 ID 列表
 }
 
 interface RecordingResult {
@@ -67,71 +70,128 @@ interface RecordingResult {
  * - RoomIdType: 0 = 整型房间号, 1 = 字符串房间号
  */
 export async function startCloudRecording(params: StartRecordingParams): Promise<RecordingResult> {
-    const { sdkAppId, roomId, recordUserId, userSig, useMixStream = true } = params;
+    const { sdkAppId, roomId, recordUserId, userSig, useMixStream = true, subscribeUserIds } = params;
 
-    // 始终使用混流录制（2），无论人数多少
-    // 单流录制（1）会为每个用户生成独立文件
-    const recordMode = 2;  // 强制混流录制
+    // 验证凭证
+    const secretId = process.env.TENCENT_SECRET_ID || '';
+    const secretKey = process.env.TENCENT_SECRET_KEY || '';
+    const cosBucket = process.env.COS_BUCKET || 'xiaofan-1395107881';
+    const cosRegion = process.env.COS_REGION || 'ap-hongkong';
+
+    console.log('========================================');
+    console.log('🎬 开始云录制 - 调试信息');
+    console.log('========================================');
+    console.log('📌 凭证验证:');
+    console.log(`   - SecretId: ${secretId ? secretId.substring(0, 12) + '...(已配置)' : '❌ 未配置'}`);
+    console.log(`   - SecretKey: ${secretKey ? '已配置 (' + secretKey.length + ' chars)' : '❌ 未配置'}`);
+    console.log(`   - COS Bucket: ${cosBucket}`);
+    console.log(`   - COS Region: ${cosRegion}`);
+
+    if (!secretId || !secretKey) {
+        console.error('❌ 凭证未配置！请检查环境变量 TENCENT_SECRET_ID 和 TENCENT_SECRET_KEY');
+        return {
+            success: false,
+            error: 'Missing TENCENT_SECRET_ID or TENCENT_SECRET_KEY in environment',
+        };
+    }
+
+    // 根据人数决定录制模式
+    // 1个人时使用单流录制(1)，多人时使用混流录制(2)
+    // 注意：单流录制会自动分开存储每个人的流，不需要混流参数
+    let recordMode = 2; // 默认混流
+
+    // 如果明确指定了 useMixStream=false，或者没有指定且人数<=1，则使用单流
+    if (useMixStream === false || (useMixStream === undefined && roomId)) {
+        // 这里还需要结合 memberCount 判断，但在 startCloudRecording 函数里我们没有 memberCount
+        // 我们假设如果调用方传递了 useMixStream，就听调用方的
+        // 如果没传，默认行为：
+    }
+
+    // 简化逻辑：直接使用传入的 useMixStream 参数
+    // 如果 useMixStream 为 false，使用单流录制(1)
+    // 如果 useMixStream 为 true，使用混流录制(2)
+    recordMode = useMixStream ? 2 : 1;
 
     try {
-        const request = {
+        // 判断房间号类型：纯数字用整型(1)，否则用字符串(0)
+        const isNumericRoomId = /^\d+$/.test(String(roomId));
+        const roomIdType = isNumericRoomId ? 1 : 0;
+
+        console.log(`📍 房间号分析:`);
+        console.log(`   - RoomId: ${roomId}`);
+        console.log(`   - 类型: ${isNumericRoomId ? '整型(1)' : '字符串(0)'}`);
+
+        const request: any = {
             // 基础参数
             SdkAppId: sdkAppId,
-            RoomId: String(roomId),
-            RoomIdType: 0,  // 整型房间号
+            RoomId: String(roomId),  // API 统一用字符串传递
+            RoomIdType: roomIdType,  // 0=字符串, 1=整型
             UserId: recordUserId,
             UserSig: userSig,
 
             // 录制参数
             RecordParams: {
-                RecordMode: recordMode,   // 2=混流录制
+                RecordMode: recordMode,   // 1=单流, 2=混流
                 MaxIdleTime: 60,          // 最大空闲时间 60 秒
                 StreamType: 0,            // 0=音视频, 1=仅音频, 2=仅视频
-            },
-
-            // 混流转码参数 (混流模式必须)
-            // 优化文件大小：使用较低码率，会议场景足够清晰
-            MixTranscodeParams: {
-                VideoParams: {
-                    Width: 640,           // 标清分辨率
-                    Height: 360,
-                    Fps: 15,              // 帧率（会议足够）
-                    BitRate: 500000,      // 码率 500Kbps（约 225MB/小时）
-                    Gop: 3,               // 关键帧间隔（秒）
-                },
-                // 音频使用默认配置
-            },
-
-            // 混流布局参数
-            MixLayoutParams: {
-                MixLayoutMode: 3,         // 3=自适应布局 (九宫格)
-                // MaxVideoUser: 9,       // 最大视频用户数（可选）
+                OutputFormat: 0,          // 0：HLS 1：HLS + MP4 2：HLS + FLV 3：MP4 4：FLV 
             },
 
             // 存储参数 - 腾讯云 COS
             StorageParams: {
                 CloudStorage: {
                     Vendor: 0,          // 0=腾讯云 COS
-                    Region: process.env.COS_REGION || 'ap-hongkong',
-                    Bucket: process.env.COS_BUCKET || 'xiaofan-1395107881',
-                    AccessKey: process.env.TENCENT_SECRET_ID || '',
-                    SecretKey: process.env.TENCENT_SECRET_KEY || '',
-                    FileNamePrefix: [`meeting`, String(roomId)],
+                    Region: cosRegion,
+                    Bucket: cosBucket,
+                    AccessKey: secretId,
+                    SecretKey: secretKey,
+                    FileNamePrefix: [`meeting`, `room_${roomId}`],
                 },
             },
         };
 
-        console.log('Starting cloud recording with params:', JSON.stringify({
-            sdkAppId,
-            roomId,
-            recordUserId,
-            recordMode: 'MixedStream (合流录制)',
-            videoResolution: '1280x720',
-            storageRegion: request.StorageParams.CloudStorage.Region,
-            storageBucket: request.StorageParams.CloudStorage.Bucket,
+        // 只有混流模式才添加混流参数
+        if (recordMode === 2) {
+            request.MixTranscodeParams = {
+                VideoParams: {
+                    Width: 640,
+                    Height: 480,
+                    Fps: 15,
+                    BitRate: 600000,
+                    Gop: 10,
+                },
+            };
+            request.MixLayoutParams = {
+                MixLayoutMode: 3,         // 3=自适应布局
+            };
+        }
+
+        console.log('📤 录制请求参数:');
+        console.log(JSON.stringify({
+            SdkAppId: request.SdkAppId,
+            RoomId: request.RoomId,
+            RoomIdType: request.RoomIdType,
+            UserId: request.UserId,
+            UserSig: request.UserSig.substring(0, 30) + '...',
+            RecordParams: request.RecordParams,
+            MixTranscodeParams: request.MixTranscodeParams,
+            MixLayoutParams: request.MixLayoutParams,
+            StorageParams: {
+                CloudStorage: {
+                    ...request.StorageParams.CloudStorage,
+                    AccessKey: request.StorageParams.CloudStorage.AccessKey.substring(0, 8) + '...',
+                    SecretKey: '***hidden***',
+                }
+            }
         }, null, 2));
 
+        console.log('');
+        console.log('🚀 正在调用腾讯云 CreateCloudRecording API...');
+        console.log(`   API Endpoint: trtc.intl.tencentcloudapi.com`);
+
+        const startTime = Date.now();
         const response = await client.CreateCloudRecording(request);
+        const duration = Date.now() - startTime;
 
         const taskId = response.TaskId || '';
 
@@ -142,20 +202,56 @@ export async function startCloudRecording(params: StartRecordingParams): Promise
             startTime: Date.now(),
         });
 
-        console.log('Cloud recording started successfully:', {
-            taskId,
-            roomId,
-            requestId: response.RequestId,
-        });
+        console.log('');
+        console.log('✅ 云录制启动成功!');
+        console.log(`   - TaskId: ${taskId}`);
+        console.log(`   - RoomId: ${roomId}`);
+        console.log(`   - RequestId: ${response.RequestId}`);
+        console.log(`   - 耗时: ${duration}ms`);
+        console.log('========================================');
+
+        // 如果指定了订阅用户，无论是单流还是混流，都进行显式订阅
+        // 这通常能解决"录制任务空闲超时"或"文件为空"的问题
+        if (taskId && subscribeUserIds && subscribeUserIds.length > 0) {
+            try {
+                console.log(`📡 正在更新订阅名单 (ModifyCloudRecording)...`);
+                console.log(`   👥 订阅用户: ${subscribeUserIds.join(', ')}`);
+
+                const modifyRequest = {
+                    SdkAppId: sdkAppId,
+                    TaskId: taskId,
+                    SubscribeStreamUserIds: {
+                        SubscribeAudioUserIds: subscribeUserIds,
+                        SubscribeVideoUserIds: subscribeUserIds,
+                    }
+                };
+
+                await client.ModifyCloudRecording(modifyRequest);
+                console.log(`✅ 订阅更新成功`);
+            } catch (modifyError: any) {
+                console.error(`⚠️ 订阅更新失败 (非致命):`, modifyError.message);
+                // 不中断流程，可能是 backend 录制不需要显式订阅
+            }
+        }
+        console.log('========================================');
 
         return {
             success: true,
             taskId,
         };
     } catch (error: any) {
-        console.error('Failed to start cloud recording:', error);
+        console.log('');
+        console.error('❌ 云录制启动失败!');
+        console.error('========================================');
+        console.error('错误详情:');
+        console.error(`   - Code: ${error.code || 'N/A'}`);
+        console.error(`   - Message: ${error.message || 'Unknown error'}`);
+        console.error(`   - RequestId: ${error.requestId || 'N/A'}`);
 
-        // 详细错误信息
+        // 打印完整错误对象用于调试
+        console.error('完整错误对象:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        console.error('========================================');
+
         const errorMessage = error.message || 'Unknown error';
         const errorCode = error.code || '';
 
@@ -211,6 +307,28 @@ export async function stopCloudRecording(params: StopRecordingParams): Promise<R
             roomId,
         });
 
+        // 调用 DescribeCloudRecording 查询最终状态（调试用）
+        console.log('========================================');
+        console.log('🔍 录制停止后查询状态 (DescribeCloudRecording)...');
+        try {
+            const describeRequest = {
+                SdkAppId: sdkAppId,
+                TaskId: task.taskId,
+            };
+            const describeResponse = await client.DescribeCloudRecording(describeRequest);
+            console.log('📋 录制最终状态:', JSON.stringify(describeResponse, null, 2));
+        } catch (describeError: any) {
+            console.log('⚠️ DescribeCloudRecording 查询结果:');
+            console.log('   - Code:', describeError.code || 'Unknown');
+            console.log('   - Message:', describeError.message || 'Unknown error');
+            console.log('   - RequestId:', describeError.requestId || 'N/A');
+            // 如果是 ResourceNotFound，说明任务已结束并被清理
+            if (describeError.code === 'ResourceNotFound') {
+                console.log('   ℹ️ 任务已完成并被 TRTC 清理，这是正常行为');
+            }
+        }
+        console.log('========================================');
+
         return {
             success: true,
             taskId: task.taskId,
@@ -225,7 +343,7 @@ export async function stopCloudRecording(params: StopRecordingParams): Promise<R
 }
 
 /**
- * 获取录制状态
+ * 获取录制状态（从内存缓存）
  */
 export async function getRecordingStatus(sdkAppId: number, roomId: number): Promise<{
     isRecording: boolean;
@@ -245,8 +363,214 @@ export async function getRecordingStatus(sdkAppId: number, roomId: number): Prom
     };
 }
 
+/**
+ * 调用 TRTC API 查询录制任务状态
+ * 注意：只能查询正在进行的录制任务
+ */
+export async function describeCloudRecording(sdkAppId: number, taskId: string): Promise<{
+    success: boolean;
+    status?: string;
+    fileList?: Array<{ fileName: string; trackType: string; beginTime: number }>;
+    error?: string;
+}> {
+    try {
+        console.log('🔍 查询录制任务状态:', { sdkAppId, taskId });
+
+        const request = {
+            SdkAppId: sdkAppId,
+            TaskId: taskId,
+        };
+
+        const response = await client.DescribeCloudRecording(request);
+
+        console.log('📋 录制任务状态:', JSON.stringify(response, null, 2));
+
+        return {
+            success: true,
+            status: response.Status,
+            fileList: response.StorageFileList?.map((f: { FileName?: string; TrackType?: string; BeginTimeStamp?: number }) => ({
+                fileName: f.FileName || '',
+                trackType: f.TrackType || '',
+                beginTime: f.BeginTimeStamp || 0,
+            })),
+        };
+    } catch (error: any) {
+        console.error('❌ 查询录制任务失败:', error);
+        return {
+            success: false,
+            error: error.message || 'Unknown error',
+        };
+    }
+}
+
+/**
+ * 保存录制记录到数据库
+ */
+export async function saveRecordingToDB(params: {
+    id: string;
+    meetingId: string;
+    taskId: string;
+    startedBy: string;
+    title?: string;
+}): Promise<void> {
+    // 延迟导入避免循环依赖
+    const { getDatabase } = await import('../db');
+    const db = getDatabase();
+
+    try {
+        const stmt = db.prepare(`
+            INSERT INTO recordings (id, meeting_id, task_id, started_by, title, started_at, status, visibility)
+            VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'), 'recording', 'host_only')
+        `);
+        stmt.run(params.id, params.meetingId, params.taskId, params.startedBy, params.title || '会议录制');
+        console.log('💾 录制记录已保存到数据库:', params.id);
+    } catch (error) {
+        console.error('❌ 保存录制记录失败:', error);
+    }
+}
+
+/**
+ * 更新录制记录（停止录制时）
+ */
+export async function updateRecordingInDB(params: {
+    taskId: string;
+    status: 'completed' | 'failed';
+    duration?: number;
+    fileUrl?: string;
+    fileSize?: number;
+    cosFileKey?: string;
+}): Promise<void> {
+    const { getDatabase } = await import('../db');
+    const db = getDatabase();
+
+    try {
+        const stmt = db.prepare(`
+            UPDATE recordings 
+            SET status = ?, 
+                ended_at = strftime('%s', 'now'),
+                duration = ?,
+                file_url = ?,
+                file_size = ?,
+                cos_file_key = ?
+            WHERE task_id = ?
+        `);
+        stmt.run(
+            params.status,
+            params.duration || null,
+            params.fileUrl || null,
+            params.fileSize || null,
+            params.cosFileKey || null,
+            params.taskId
+        );
+        console.log('💾 录制记录已更新:', params.taskId);
+    } catch (error) {
+        console.error('❌ 更新录制记录失败:', error);
+    }
+}
+
+/**
+ * 获取会议的录制列表
+ */
+export async function getRecordingsByMeeting(meetingId: string, userId: string, isHost: boolean): Promise<Array<{
+    id: string;
+    taskId: string;
+    startedBy: string;
+    startedAt: number;
+    endedAt: number | null;
+    duration: number | null;
+    status: string;
+    visibility: string;
+    fileUrl: string | null;
+    title: string | null;
+    cosFileKey?: string;
+}>> {
+    const { getDatabase } = await import('../db');
+    const db = getDatabase();
+
+    try {
+        // 主持人可以看到所有录制，其他人只能看到公开的
+        const query = isHost
+            ? `SELECT * FROM recordings WHERE meeting_id = ? ORDER BY started_at DESC`
+            : `SELECT * FROM recordings WHERE meeting_id = ? AND visibility = 'all' ORDER BY started_at DESC`;
+
+        const recordings = db.prepare(query).all(meetingId) as Array<{
+            id: string;
+            task_id: string;
+            started_by: string;
+            started_at: number;
+            ended_at: number | null;
+            duration: number | null;
+            status: string;
+            visibility: string;
+            file_url: string | null;
+            title: string | null;
+            cos_file_key?: string;
+        }>;
+
+        return recordings.map(r => ({
+            id: r.id,
+            taskId: r.task_id,
+            startedBy: r.started_by,
+            startedAt: r.started_at,
+            endedAt: r.ended_at,
+            duration: r.duration,
+            status: r.status,
+            visibility: r.visibility,
+            fileUrl: r.file_url,
+            title: r.title,
+            cosFileKey: r.cos_file_key,
+        }));
+    } catch (error) {
+        console.error('❌ 获取录制列表失败:', error);
+        return [];
+    }
+}
+
+/**
+ * 更新录制可见性
+ */
+export async function updateRecordingVisibility(
+    recordingId: string,
+    visibility: 'host_only' | 'all',
+    userId: string
+): Promise<{ success: boolean; error?: string }> {
+    const { getDatabase } = await import('../db');
+    const db = getDatabase();
+
+    try {
+        // 验证用户是否是录制所属会议的主持人
+        const recording = db.prepare(`
+            SELECT r.*, m.host_id 
+            FROM recordings r 
+            JOIN meetings m ON r.meeting_id = m.id 
+            WHERE r.id = ?
+        `).get(recordingId) as { host_id: string } | undefined;
+
+        if (!recording) {
+            return { success: false, error: 'Recording not found' };
+        }
+
+        if (recording.host_id !== userId) {
+            return { success: false, error: 'Only host can change recording visibility' };
+        }
+
+        db.prepare(`UPDATE recordings SET visibility = ? WHERE id = ?`).run(visibility, recordingId);
+
+        console.log(`📝 录制可见性已更新: ${recordingId} -> ${visibility}`);
+        return { success: true };
+    } catch (error: any) {
+        console.error('❌ 更新录制可见性失败:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 export default {
     startCloudRecording,
     stopCloudRecording,
     getRecordingStatus,
+    describeCloudRecording,
+    saveRecordingToDB,
+    updateRecordingInDB,
+    getRecordingsByMeeting,
+    updateRecordingVisibility,
 };

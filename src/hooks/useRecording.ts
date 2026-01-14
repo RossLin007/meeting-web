@@ -83,6 +83,9 @@ export function useRecording({ roomId, memberCount, onError }: UseRecordingOptio
                 body: JSON.stringify({
                     roomId,
                     memberCount,  // 传递人数用于后端决定录制模式
+                    userId: localStorage.getItem('uniauth_user')
+                        ? JSON.parse(localStorage.getItem('uniauth_user') || '{}').id
+                        : undefined,  // 传递当前用户 ID 用于订阅
                 }),
             }, DEFAULT_TIMEOUT);
 

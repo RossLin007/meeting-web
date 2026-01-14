@@ -7,6 +7,8 @@ import { PrivateRoute } from '@/components/PrivateRoute';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Home } from '@/pages/Home';
 import { Meeting } from '@/pages/Meeting';
+import { PreJoin } from '@/pages/PreJoin';
+import { Recordings } from '@/pages/Recordings';
 import { Login } from '@/pages/Login';
 import { Settings } from '@/pages/Settings';
 
@@ -35,6 +37,22 @@ function App() {
                 element={
                   <PrivateRoute>
                     <Settings />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/recordings"
+                element={
+                  <PrivateRoute>
+                    <Recordings />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/prejoin/:roomId"
+                element={
+                  <PrivateRoute>
+                    <PreJoin />
                   </PrivateRoute>
                 }
               />

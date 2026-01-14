@@ -19,6 +19,7 @@ import usersigRoutes from './routes/usersig';
 import meetingsRoutes from './routes/meetings';
 import usersRoutes from './routes/users';
 import contactsRoutes from './routes/contacts';
+import storageRoutes from './routes/storage';
 
 const app = express();
 const httpServer = createServer(app);
@@ -62,6 +63,7 @@ app.use('/api/usersig', usersigRoutes);
 app.use('/api/meetings', meetingsRoutes);
 app.use(usersRoutes);  // 用户路由（包含完整路径）
 app.use('/api/contacts', contactsRoutes);
+app.use('/api/storage', storageRoutes);
 
 // 错误处理
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
