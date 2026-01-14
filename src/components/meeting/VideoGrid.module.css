@@ -1,0 +1,331 @@
+/* 视频宫格样式 */
+
+.container {
+    display: flex;
+    gap: var(--spacing-2);
+    width: 100%;
+    height: 100%;
+    background-color: var(--color-bg-page, #1a1a1a);
+}
+
+/* 普通宫格布局 - 参与者区域 */
+.participantsGrid {
+    display: grid;
+    gap: var(--spacing-2);
+    width: 100%;
+    height: 100%;
+}
+
+/* 1人布局 */
+.grid1 .participantsGrid {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+}
+
+/* 2人布局 */
+.grid2 .participantsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: 1fr;
+}
+
+/* 4人布局 */
+.grid4 .participantsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+}
+
+/* 9人布局 */
+.grid9 .participantsGrid {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+}
+
+/* 16人布局 */
+.grid16 .participantsGrid {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+}
+
+/* 屏幕共享布局 */
+.gridScreenShare {
+    flex-direction: row;
+}
+
+.gridScreenShare .screenShareMain {
+    flex: 1;
+    min-width: 0;
+}
+
+.gridScreenShare .participantsSidebar {
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    overflow-y: auto;
+}
+
+.gridScreenShare .participantsSidebar .videoItem {
+    flex-shrink: 0;
+    height: 120px;
+}
+
+/* 屏幕共享主区域 */
+.screenShareMain {
+    position: relative;
+    overflow: hidden;
+}
+
+.screenShareVideo {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background-color: var(--color-bg-card, #16213e);
+    border-radius: var(--radius-lg);
+}
+
+.screenShareVideo video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* 视频项 */
+.videoItem {
+    position: relative;
+    background-color: var(--color-bg-card, #16213e);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.video {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+/* TRTC 渲染的 video 标签需要覆盖 placeholder */
+.video video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    /* 确保 video 在 placeholder 上方 */
+}
+
+.placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, var(--color-bg-card, #16213e) 0%, var(--color-bg-page, #1a1a2e) 100%);
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    /* placeholder 在 video 下方 */
+}
+
+.avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 600;
+    color: white;
+}
+
+/* 参与者信息 */
+.participantInfo {
+    position: absolute;
+    bottom: var(--spacing-2);
+    left: var(--spacing-2);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-1) var(--spacing-2);
+    background-color: rgba(0, 0, 0, 0.6);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: white;
+    z-index: 10;
+    /* 确保在视频上方 */
+}
+
+.micIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    background-color: var(--color-primary);
+    border-radius: 50%;
+    padding: 2px;
+}
+
+.micIcon svg {
+    width: 10px;
+    height: 10px;
+    color: white;
+}
+
+/* 静音状态 */
+.micOff {
+    background-color: var(--color-danger, #ef4444);
+}
+
+.nameTag {
+    position: absolute;
+    bottom: var(--spacing-2);
+    left: var(--spacing-2);
+    padding: var(--spacing-1) var(--spacing-2);
+    background-color: rgba(0, 0, 0, 0.6);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: white;
+}
+
+/* 响应式 */
+@media (max-width: 1023px) {
+    .gridScreenShare {
+        flex-direction: column;
+    }
+
+    .gridScreenShare .participantsSidebar {
+        width: 100%;
+        height: 100px;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .gridScreenShare .participantsSidebar .videoItem {
+        width: 140px;
+        height: 100%;
+    }
+}
+
+@media (max-width: 767px) {
+    .grid2 .participantsGrid {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(2, 1fr);
+    }
+
+    .grid4 .participantsGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .grid9 .participantsGrid {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: auto;
+    }
+
+    .avatar {
+        width: 48px;
+        height: 48px;
+        font-size: 20px;
+    }
+
+    .gridScreenShare .participantsSidebar .videoItem {
+        width: 100px;
+    }
+}
+
+/* ========== 布局类型样式 ========== */
+
+/* 演讲者布局：主讲人大画面 + 侧边小画面 */
+.layoutSpeaker .participantsGrid {
+    display: grid;
+    grid-template-columns: 1fr 200px;
+    grid-template-rows: 1fr;
+    gap: var(--spacing-2);
+}
+
+.layoutSpeaker .participantsGrid .videoItem:first-child {
+    grid-row: 1 / -1;
+}
+
+.layoutSpeaker .participantsGrid .videoItem:not(:first-child) {
+    max-height: 150px;
+}
+
+/* 焦点布局：单人全屏 */
+.layoutFocus .participantsGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+}
+
+.layoutFocus .participantsGrid .videoItem:not(:first-child) {
+    display: none;
+}
+
+/* 并排布局：左右两人大画面 */
+.layoutSideBySide .participantsGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: 1fr;
+    gap: var(--spacing-2);
+}
+
+.layoutSideBySide .participantsGrid .videoItem:nth-child(n+3) {
+    display: none;
+}
+
+/* 浮动布局：画中画模式 */
+.layoutFloat {
+    position: relative;
+}
+
+.layoutFloat .participantsGrid {
+    display: block;
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.layoutFloat .participantsGrid .videoItem:first-child {
+    width: 100%;
+    height: 100%;
+}
+
+.layoutFloat .participantsGrid .videoItem:not(:first-child) {
+    position: absolute;
+    width: 180px;
+    height: 120px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 10;
+}
+
+.layoutFloat .participantsGrid .videoItem:nth-child(2) {
+    bottom: 16px;
+    right: 16px;
+}
+
+.layoutFloat .participantsGrid .videoItem:nth-child(3) {
+    bottom: 16px;
+    right: 212px;
+}
+
+.layoutFloat .participantsGrid .videoItem:nth-child(4) {
+    bottom: 152px;
+    right: 16px;
+}
+
+.layoutFloat .participantsGrid .videoItem:nth-child(n+5) {
+    display: none;
+}

@@ -1,0 +1,183 @@
+/* 智会 - 会议卡片样式 */
+
+.card {
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.listView {
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.listView .header {
+    margin-bottom: 0;
+}
+
+.dateBadge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 8px 12px;
+    min-width: 48px;
+}
+
+.dateDay {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary, #fff);
+    line-height: 1;
+}
+
+.dateMonth {
+    font-size: 12px;
+    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+    text-transform: uppercase;
+}
+
+/* Status */
+.status {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.statusOngoing {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+}
+
+.statusScheduled {
+    background: rgba(59, 130, 246, 0.2);
+    color: #3b82f6;
+}
+
+.statusEnded {
+    background: rgba(107, 114, 128, 0.2);
+    color: #9ca3af;
+}
+
+/* Info */
+.info {
+    flex: 1;
+    min-width: 0;
+}
+
+.title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary, #fff);
+    margin: 0 0 8px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.id {
+    font-size: 12px;
+    color: var(--text-tertiary, rgba(255, 255, 255, 0.5));
+    margin: 0 0 8px 0;
+}
+
+.time {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+    margin: 0;
+}
+
+.time svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+}
+
+.separator {
+    color: var(--text-tertiary, rgba(255, 255, 255, 0.4));
+}
+
+/* Actions */
+.actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.listView .actions {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+.participants {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+.participants svg {
+    width: 14px;
+    height: 14px;
+}
+
+.hostBadge {
+    padding: 2px 8px;
+    background: rgba(168, 85, 247, 0.2);
+    color: #a855f7;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .card {
+        padding: 16px;
+    }
+
+    .listView {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .listView .header {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+
+    .listView .actions {
+        width: 100%;
+        padding-top: 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+}

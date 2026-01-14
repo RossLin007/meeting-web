@@ -1,0 +1,139 @@
+/* Modal 组件样式 - 支持主题切换 */
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: var(--z-modal);
+    padding: var(--spacing-4);
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.modal {
+    background-color: var(--color-bg-card, #ffffff);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+    animation: slideIn 0.2s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* 尺寸 */
+.sm {
+    width: 100%;
+    max-width: 360px;
+}
+
+.md {
+    width: 100%;
+    max-width: 480px;
+}
+
+.lg {
+    width: 100%;
+    max-width: 640px;
+}
+
+.xl {
+    width: 100%;
+    max-width: 800px;
+}
+
+/* 头部 */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-4) var(--spacing-6);
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.title {
+    font-size: var(--text-lg);
+    font-weight: 600;
+    color: var(--color-text-primary, #111827);
+    margin: 0;
+}
+
+.closeButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: none;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary, #6b7280);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.closeButton:hover {
+    background-color: rgba(128, 128, 128, 0.2);
+    color: var(--color-text-primary, #111827);
+}
+
+/* 内容 */
+.body {
+    padding: var(--spacing-6);
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* 底部 */
+.footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--spacing-3);
+    padding: var(--spacing-4) var(--spacing-6);
+    border-top: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+/* 响应式 */
+@media (max-width: 639px) {
+    .modal {
+        max-height: calc(100vh - 1rem);
+        margin: var(--spacing-2);
+    }
+
+    .header {
+        padding: var(--spacing-3) var(--spacing-4);
+    }
+
+    .body {
+        padding: var(--spacing-4);
+    }
+
+    .footer {
+        padding: var(--spacing-3) var(--spacing-4);
+    }
+}

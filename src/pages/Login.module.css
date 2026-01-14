@@ -1,0 +1,317 @@
+/* 智会 - 登录页面样式 */
+
+/* ==================== 容器布局 ==================== */
+.container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-4);
+    position: relative;
+    overflow: hidden;
+}
+
+/* ==================== 动态背景 ==================== */
+.background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    z-index: -2;
+}
+
+.backgroundOrbs {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -1;
+    overflow: hidden;
+}
+
+.orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.6;
+    animation: float 20s infinite ease-in-out;
+}
+
+.orb1 {
+    width: 400px;
+    height: 400px;
+    background: rgba(102, 126, 234, 0.8);
+    top: -100px;
+    left: -100px;
+    animation-delay: 0s;
+}
+
+.orb2 {
+    width: 300px;
+    height: 300px;
+    background: rgba(240, 147, 251, 0.7);
+    bottom: -50px;
+    right: -50px;
+    animation-delay: -5s;
+}
+
+.orb3 {
+    width: 250px;
+    height: 250px;
+    background: rgba(118, 75, 162, 0.6);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation-delay: -10s;
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    25% {
+        transform: translate(30px, -30px) scale(1.05);
+    }
+
+    50% {
+        transform: translate(-20px, 20px) scale(0.95);
+    }
+
+    75% {
+        transform: translate(20px, 30px) scale(1.02);
+    }
+}
+
+/* ==================== 登录卡片 ==================== */
+.card {
+    width: 100%;
+    max-width: 420px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-10);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    animation: slideUp 0.6s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ==================== Logo 区域 ==================== */
+.logoContainer {
+    text-align: center;
+    margin-bottom: var(--spacing-8);
+}
+
+.logo {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto var(--spacing-4);
+    background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.8) 100%);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.logo svg {
+    width: 48px;
+    height: 48px;
+    color: #667eea;
+}
+
+.title {
+    font-size: var(--text-2xl);
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 var(--spacing-2);
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.subtitle {
+    font-size: var(--text-base);
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0;
+}
+
+/* ==================== 登录按钮 ==================== */
+.loginButton {
+    width: 100%;
+    padding: var(--spacing-4) var(--spacing-6);
+    font-size: var(--text-lg);
+    font-weight: 600;
+    color: #667eea;
+    background: linear-gradient(135deg, #fff 0%, #f8f9ff 100%);
+    border: none;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-3);
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    margin-bottom: var(--spacing-6);
+}
+
+.loginButton:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.loginButton:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.loginButton:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.loginButton svg {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+/* 加载动画 */
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(102, 126, 234, 0.3);
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ==================== 条款提示 ==================== */
+.terms {
+    font-size: var(--text-sm);
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+    line-height: 1.5;
+}
+
+/* ==================== 语言切换 ==================== */
+.languageSwitch {
+    position: absolute;
+    top: var(--spacing-4);
+    right: var(--spacing-4);
+}
+
+.langButton {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-4);
+    font-size: var(--text-sm);
+    color: #fff;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.langButton:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.langButton svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* ==================== 响应式设计 ==================== */
+
+/* 手机端 (<640px) */
+@media (max-width: 639px) {
+    .card {
+        padding: var(--spacing-6);
+        margin: var(--spacing-4);
+    }
+
+    .logo {
+        width: 64px;
+        height: 64px;
+    }
+
+    .logo svg {
+        width: 36px;
+        height: 36px;
+    }
+
+    .title {
+        font-size: var(--text-xl);
+    }
+
+    .subtitle {
+        font-size: var(--text-sm);
+    }
+
+    .loginButton {
+        padding: var(--spacing-3) var(--spacing-4);
+        font-size: var(--text-base);
+    }
+
+    .orb1 {
+        width: 250px;
+        height: 250px;
+    }
+
+    .orb2 {
+        width: 200px;
+        height: 200px;
+    }
+
+    .orb3 {
+        width: 150px;
+        height: 150px;
+    }
+}
+
+/* 平板端 (640px - 1024px) */
+@media (min-width: 640px) and (max-width: 1023px) {
+    .card {
+        padding: var(--spacing-8);
+    }
+}
+
+/* 深色模式支持 */
+@media (prefers-color-scheme: dark) {
+    .card {
+        background: rgba(30, 30, 40, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .logo {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
+    }
+}

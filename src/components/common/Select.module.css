@@ -1,0 +1,97 @@
+/* Select 下拉选择组件样式 */
+
+.wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+}
+
+.fullWidth {
+    width: 100%;
+}
+
+.label {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+}
+
+.selectWrapper {
+    position: relative;
+}
+
+.select {
+    width: 100%;
+    padding: var(--spacing-3) var(--spacing-10) var(--spacing-3) var(--spacing-3);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    appearance: none;
+    transition: all var(--transition-fast);
+}
+
+.select:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.select.error {
+    border-color: var(--color-error);
+}
+
+.select option {
+    background: #1e293b;
+    color: #fff;
+    padding: var(--spacing-2);
+}
+
+/* 尺寸 */
+.sm {
+    padding: var(--spacing-2) var(--spacing-8) var(--spacing-2) var(--spacing-2);
+    font-size: var(--text-xs);
+}
+
+.md {
+    padding: var(--spacing-3) var(--spacing-10) var(--spacing-3) var(--spacing-3);
+    font-size: var(--text-sm);
+}
+
+.lg {
+    padding: var(--spacing-4) var(--spacing-12) var(--spacing-4) var(--spacing-4);
+    font-size: var(--text-base);
+}
+
+/* 箭头 */
+.arrow {
+    position: absolute;
+    right: var(--spacing-3);
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--color-text-secondary);
+}
+
+.arrow svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* 提示和错误 */
+.hint {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+}
+
+.errorText {
+    font-size: var(--text-xs);
+    color: var(--color-error);
+}

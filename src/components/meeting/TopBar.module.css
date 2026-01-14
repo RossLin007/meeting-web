@@ -1,0 +1,108 @@
+/* 顶部栏样式 */
+
+.container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-2) var(--spacing-4);
+    background-color: var(--color-bg-toolbar, #0f0f1a);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+}
+
+.right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+}
+
+.center {
+    display: flex;
+    justify-content: center;
+}
+
+.title {
+    font-size: var(--text-base);
+    font-weight: 500;
+    color: var(--color-text-primary, white);
+    margin: 0;
+}
+
+.roomInfo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-1) var(--spacing-3);
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-full);
+}
+
+.roomId {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary, #94a3b8);
+    font-family: var(--font-mono);
+}
+
+.copyBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: none;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary, #94a3b8);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.copyBtn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--color-text-primary, white);
+}
+
+.copyBtn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.network {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+}
+
+.signalIcon {
+    width: 18px;
+    height: 18px;
+}
+
+.networkText {
+    font-size: var(--text-xs);
+}
+
+/* 响应式 */
+@media (max-width: 767px) {
+    .container {
+        padding: var(--spacing-2) var(--spacing-2);
+    }
+
+    .title {
+        font-size: var(--text-sm);
+    }
+
+    .networkText {
+        display: none;
+    }
+
+    .left,
+    .right {
+        gap: var(--spacing-1);
+    }
+}

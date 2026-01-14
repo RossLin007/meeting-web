@@ -1,0 +1,47 @@
+/* 会议室页面样式 */
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: var(--color-bg-page, #1a1a1a);
+    color: var(--color-text-primary, white);
+}
+
+.topSection {
+    position: relative;
+}
+
+.recordingWrapper {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+}
+
+.main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.videoArea {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-2);
+    background-color: var(--color-bg-page, #1a1a1a);
+}
+
+/* 响应式 */
+@media (max-width: 767px) {
+    .main {
+        flex-direction: column;
+    }
+
+    .videoArea {
+        padding: var(--spacing-1);
+    }
+}

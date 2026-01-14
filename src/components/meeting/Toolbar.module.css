@@ -1,0 +1,197 @@
+/* 底部工具栏样式 */
+
+.container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-3) var(--spacing-4);
+    background-color: var(--color-bg-toolbar, #0f0f1a);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.leftSection,
+.centerSection,
+.rightSection {
+    display: flex;
+    gap: var(--spacing-1);
+}
+
+.centerSection {
+    flex: 1;
+    justify-content: center;
+    gap: var(--spacing-2);
+}
+
+.button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-2) var(--spacing-3);
+    border: none;
+    background: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    color: var(--color-text-primary, white);
+}
+
+.button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.button svg {
+    width: 22px;
+    height: 22px;
+}
+
+.label {
+    font-size: var(--text-xs);
+    white-space: nowrap;
+    color: var(--color-text-secondary, #94a3b8);
+}
+
+/* 关闭状态 */
+.off {
+    color: var(--color-primary);
+}
+
+.off .label {
+    color: var(--color-primary);
+}
+
+.off:hover {
+    background-color: rgba(var(--color-primary), 0.1);
+}
+
+/* 激活状态 */
+.active {
+    color: var(--color-primary);
+}
+
+.active .label {
+    color: var(--color-primary);
+}
+
+.active:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 录制按钮 */
+.recordIcon svg {
+    color: #ef4444;
+    fill: #ef4444;
+}
+
+.recording {
+    color: #ef4444;
+}
+
+.recording .label {
+    color: #ef4444;
+    font-weight: 600;
+}
+
+.recording:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* 结束通话按钮 */
+.endCall {
+    background-color: #ff4d4f;
+    padding: var(--spacing-2) var(--spacing-4);
+    border-radius: var(--radius-lg);
+}
+
+.endCall .label {
+    color: white;
+}
+
+.endCall:hover {
+    background-color: #ff7875;
+}
+
+/* 图标包装器（用于徽章定位）*/
+.iconWrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 未读消息徽章 */
+.badge {
+    position: absolute;
+    top: -6px;
+    right: -8px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 16px;
+    text-align: center;
+    color: white;
+    background-color: #ef4444;
+    border-radius: 8px;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+/* 响应式 */
+@media (max-width: 767px) {
+    .container {
+        padding: var(--spacing-2) var(--spacing-2);
+        flex-wrap: wrap;
+        gap: var(--spacing-1);
+    }
+
+    .leftSection,
+    .centerSection,
+    .rightSection {
+        flex: none;
+    }
+
+    .centerSection {
+        order: 1;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .leftSection {
+        order: 2;
+    }
+
+    .rightSection {
+        order: 3;
+    }
+
+    .label {
+        display: none;
+    }
+
+    .button {
+        padding: var(--spacing-2);
+    }
+
+    .button svg {
+        width: 20px;
+        height: 20px;
+    }
+}

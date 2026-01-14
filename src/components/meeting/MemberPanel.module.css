@@ -1,0 +1,377 @@
+/* 成员面板样式 */
+
+.container {
+    width: 280px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-bg-card, #1e293b);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-3) var(--spacing-4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.title {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--color-text-primary, white);
+    margin: 0;
+}
+
+.closeBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: none;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary, #94a3b8);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.closeBtn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--color-text-primary, white);
+}
+
+.closeBtn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* 搜索框 */
+.searchBox {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    margin: var(--spacing-2) var(--spacing-3);
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.searchBox svg {
+    width: 16px;
+    height: 16px;
+    color: var(--color-text-secondary, #94a3b8);
+}
+
+.searchInput {
+    flex: 1;
+    border: none;
+    background: none;
+    color: var(--color-text-primary, white);
+    font-size: var(--text-sm);
+    outline: none;
+}
+
+.searchInput::placeholder {
+    color: var(--color-text-secondary, #94a3b8);
+}
+
+/* 成员列表 */
+.memberList {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-2);
+}
+
+.memberItem {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.memberItem:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.avatar svg {
+    width: 18px;
+    height: 18px;
+}
+
+.memberInfo {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.memberName {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-sm);
+    color: var(--color-text-primary, white);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.editNameBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary, #94a3b8);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.editNameBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-primary, #3b82f6);
+}
+
+.editNameBtn svg {
+    width: 12px;
+    height: 12px;
+}
+
+.hostBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--text-xs);
+    color: #fbbf24;
+}
+
+.hostBadge svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* 改名输入框 */
+.renameInput {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+}
+
+.renameInput input {
+    flex: 1;
+    padding: var(--spacing-1);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-primary, white);
+    font-size: var(--text-sm);
+    outline: none;
+}
+
+.renameInput button {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    color: var(--color-text-secondary, #94a3b8);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+}
+
+.renameInput button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-text-primary, white);
+}
+
+/* 状态图标 */
+.statusIcons {
+    display: flex;
+    gap: var(--spacing-1);
+}
+
+.statusIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: #22c55e;
+}
+
+.statusIcon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.statusIcon.off {
+    color: #ef4444;
+}
+
+/* 可点击的状态按钮 */
+.statusButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: #22c55e;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.statusButton:hover {
+    background: var(--color-bg-card, rgba(255, 255, 255, 0.1));
+}
+
+.statusButton.off {
+    color: #ef4444;
+}
+
+.statusButton svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* 操作菜单 */
+.menuWrapper {
+    position: relative;
+}
+
+.menuBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: none;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary, #94a3b8);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.menuBtn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--color-text-primary, white);
+}
+
+.menuBtn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: var(--spacing-1);
+    min-width: 160px;
+    background-color: var(--color-bg-card, #1e293b);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    overflow: hidden;
+}
+
+.dropdown button {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    width: 100%;
+    padding: var(--spacing-2) var(--spacing-3);
+    border: none;
+    background: none;
+    color: var(--color-text-primary, white);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-align: left;
+}
+
+.dropdown button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dropdown button svg {
+    width: 16px;
+    height: 16px;
+    color: var(--color-text-secondary, #94a3b8);
+}
+
+/* 响应式 */
+@media (max-width: 767px) {
+    .container {
+        position: fixed;
+        bottom: 60px;
+        right: 0;
+        width: 100%;
+        height: 50%;
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+}
+
+/* 底部控制按钮 */
+.footer {
+    display: flex;
+    gap: var(--spacing-2);
+    padding: var(--spacing-3);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.footerBtn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    border: none;
+    background: var(--color-danger, #ef4444);
+    color: white;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.footerBtn:hover {
+    background: var(--color-danger-hover, #dc2626);
+}
+
+.footerBtn svg {
+    width: 16px;
+    height: 16px;
+}

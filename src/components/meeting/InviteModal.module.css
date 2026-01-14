@@ -1,0 +1,72 @@
+/* 邀请弹窗样式 - 支持主题切换 */
+
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-4);
+}
+
+.infoSection {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    padding: var(--spacing-3);
+    background-color: var(--color-bg-page, #f9fafb);
+    border-radius: var(--radius-md);
+}
+
+.infoItem {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+}
+
+.label {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary, #6b7280);
+    min-width: 80px;
+}
+
+.value {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-text-primary, #111827);
+}
+
+.linkSection {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+}
+
+.linkLabel {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-text-primary, #111827);
+}
+
+.linkInput {
+    display: flex;
+    gap: var(--spacing-2);
+}
+
+.linkInput input {
+    flex: 1;
+    padding: var(--spacing-2) var(--spacing-3);
+    background-color: var(--color-bg-page, #f9fafb);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--color-text-primary, #111827);
+}
+
+.linkInput input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.actions {
+    display: flex;
+    gap: var(--spacing-2);
+    padding-top: var(--spacing-2);
+}

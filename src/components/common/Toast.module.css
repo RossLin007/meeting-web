@@ -1,0 +1,139 @@
+/* Toast 组件样式 */
+
+.container {
+    position: fixed;
+    top: var(--spacing-4);
+    right: var(--spacing-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    z-index: var(--z-toast);
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    padding: var(--spacing-3) var(--spacing-4);
+    background-color: var(--color-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    border-left: 4px solid;
+    pointer-events: auto;
+    animation: slideIn 0.3s ease;
+    max-width: 400px;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* 类型样式 */
+.success {
+    border-left-color: var(--color-success);
+}
+
+.success .icon {
+    color: var(--color-success);
+}
+
+.error {
+    border-left-color: var(--color-error);
+}
+
+.error .icon {
+    color: var(--color-error);
+}
+
+.warning {
+    border-left-color: var(--color-warning);
+}
+
+.warning .icon {
+    color: var(--color-warning);
+}
+
+.info {
+    border-left-color: var(--color-info);
+}
+
+.info .icon {
+    color: var(--color-info);
+}
+
+.icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+}
+
+.icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.message {
+    flex: 1;
+    font-size: var(--text-sm);
+    color: var(--color-text);
+}
+
+.closeButton {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.closeButton:hover {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text);
+}
+
+.closeButton svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* 响应式 */
+@media (max-width: 639px) {
+    .container {
+        top: auto;
+        bottom: var(--spacing-4);
+        left: var(--spacing-4);
+        right: var(--spacing-4);
+    }
+
+    .toast {
+        max-width: none;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(100%);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+}

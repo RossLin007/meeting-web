@@ -1,0 +1,381 @@
+/* 联系人详情卡片样式 */
+
+.card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all var(--transition-normal);
+}
+
+.card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.card.expanded {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* 基础信息行 */
+.basicInfo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+    padding: var(--spacing-4);
+    cursor: pointer;
+}
+
+.avatar {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--text-lg);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.onlineIndicator {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid rgba(13, 33, 55, 1);
+}
+
+.onlineIndicator.online {
+    background: #10b981;
+}
+
+.onlineIndicator.recent {
+    background: #f59e0b;
+}
+
+.onlineIndicator.offline {
+    background: #6b7280;
+}
+
+.info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+}
+
+.name {
+    font-size: var(--text-base);
+    font-weight: 500;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    font-size: var(--text-sm);
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.groupBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    background: rgba(139, 92, 246, 0.2);
+    color: #a78bfa;
+}
+
+.groupColor {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.quickAction {
+    padding: var(--spacing-2);
+    border: none;
+    background: rgba(59, 130, 246, 0.2);
+    border-radius: var(--radius-md);
+    color: #60a5fa;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.quickAction:hover {
+    background: rgba(59, 130, 246, 0.4);
+}
+
+.quickAction svg {
+    width: 20px;
+    height: 20px;
+}
+
+.expandIcon {
+    color: rgba(255, 255, 255, 0.4);
+    transition: transform var(--transition-fast);
+}
+
+.expandIcon.expanded {
+    transform: rotate(180deg);
+}
+
+.expandIcon svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* 展开详情 */
+.details {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: var(--spacing-4);
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.detailSection {
+    margin-bottom: var(--spacing-4);
+}
+
+.detailSection:last-child {
+    margin-bottom: 0;
+}
+
+.detailLabel {
+    font-size: var(--text-xs);
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: var(--spacing-2);
+}
+
+.detailValue {
+    font-size: var(--text-sm);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.stats {
+    display: flex;
+    gap: var(--spacing-6);
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+}
+
+.statValue {
+    font-size: var(--text-xl);
+    font-weight: 600;
+    color: #fff;
+}
+
+.statLabel {
+    font-size: var(--text-xs);
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* 分组选择 */
+.groupSelect {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-2);
+}
+
+.groupOption {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.groupOption:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.groupOption.selected {
+    background: rgba(139, 92, 246, 0.2);
+    border-color: #8b5cf6;
+    color: #a78bfa;
+}
+
+/* 操作按钮区 */
+.actions {
+    display: flex;
+    gap: var(--spacing-3);
+    padding-top: var(--spacing-3);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.actionBtn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-3);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.actionBtn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.actionBtn.primary {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: #fff;
+}
+
+.actionBtn.primary:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.actionBtn.secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.actionBtn.secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.actionBtn.danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.actionBtn.danger:hover {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+/* 历史会议列表 */
+.meetingHistory {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.meetingItem {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    padding: var(--spacing-2) 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.meetingItem:last-child {
+    border-bottom: none;
+}
+
+.meetingIcon {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    background: rgba(59, 130, 246, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #60a5fa;
+}
+
+.meetingIcon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.meetingInfo {
+    flex: 1;
+    min-width: 0;
+}
+
+.meetingTitle {
+    font-size: var(--text-sm);
+    color: rgba(255, 255, 255, 0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.meetingDate {
+    font-size: var(--text-xs);
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* 加载状态 */
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-4);
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* 空状态 */
+.empty {
+    text-align: center;
+    padding: var(--spacing-4);
+    color: rgba(255, 255, 255, 0.4);
+    font-size: var(--text-sm);
+}
+
+/* 响应式 */
+@media (max-width: 767px) {
+    .basicInfo {
+        padding: var(--spacing-3);
+    }
+
+    .avatar {
+        width: 40px;
+        height: 40px;
+        font-size: var(--text-base);
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    .stats {
+        flex-wrap: wrap;
+    }
+}

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="智会 - 让每一次会议更智慧" />
+
+  <!-- 安全策略 (CSP 可以通过 meta 设置) -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
+                   script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://*.qq.com https://*.qcloud.com; 
+                   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
+                   font-src 'self' https://fonts.gstatic.com; 
+                   img-src 'self' data: blob: https: http:; 
+                   connect-src 'self' https://*.qq.com https://*.qcloud.com wss://*.qcloud.com wss://*.qq.com https://*.tencent.com wss://*.tencent.com https://*.rtc.qq.com wss://*.rtc.qq.com https://*.rtc-web.com wss://*.rtc-web.com https://*.rtc-web.io wss://*.rtc-web.io https://*.my-imcloud.com wss://*.my-imcloud.com https://*.55387.xyz http://localhost:* ws://localhost:*; 
+                   media-src 'self' blob:; 
+                   worker-src 'self' blob:;
+                   frame-src 'self' https://docs.google.com; 
+                   object-src 'none';" />
+  <!-- 注意: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy 应在服务器端配置 -->
+
+  <title>智会 | ZhiHui Meeting</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

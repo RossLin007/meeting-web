@@ -1,0 +1,107 @@
+/* 录制控制样式 */
+
+.container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: var(--radius-full);
+    backdrop-filter: blur(8px);
+}
+
+.container.recording {
+    background-color: rgba(220, 38, 38, 0.2);
+    border: 1px solid rgba(220, 38, 38, 0.5);
+}
+
+/* 录制指示器 */
+.indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #dc2626;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* 时间显示 */
+.time {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: white;
+    font-variant-numeric: tabular-nums;
+    min-width: 60px;
+}
+
+/* 开始录制按钮 */
+.startBtn {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-1) var(--spacing-2);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    color: white;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.startBtn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.startBtn svg {
+    width: 16px;
+    height: 16px;
+    color: #dc2626;
+}
+
+/* 停止录制按钮 */
+.stopBtn {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-1) var(--spacing-2);
+    background-color: #dc2626;
+    border: none;
+    border-radius: var(--radius-md);
+    color: white;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.stopBtn:hover {
+    background-color: #b91c1c;
+}
+
+.stopBtn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* 只读模式（非主持人查看） */
+.viewOnly {
+    cursor: default;
+}
+
+/* 录制状态文本 */
+.statusText {
+    font-size: var(--text-sm);
+    color: white;
+    opacity: 0.9;
+}
