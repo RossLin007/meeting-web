@@ -200,13 +200,14 @@ describe('Home Page', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/settings');
     });
 
-    it('calls logout when clicking logout button', () => {
+    it('shows logout confirmation modal when clicking logout button', async () => {
         renderWithRouter(<Home />);
 
         const logoutBtn = screen.getByTitle('Logout');
         fireEvent.click(logoutBtn);
 
-        expect(mockLogout).toHaveBeenCalledTimes(1);
+        // Should show the confirmation modal instead of logging out immediately
+        expect(await screen.findByText('home.logoutConfirmTitle')).toBeInTheDocument();
     });
 
     it('shows loading state when auth is loading', () => {

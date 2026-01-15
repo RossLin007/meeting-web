@@ -1,6 +1,6 @@
 // 智会 - 首页（仪表板风格）
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Modal, Input } from '@/components/common';
@@ -12,6 +12,7 @@ import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
 import * as contactsApi from '@/services/contactsApi';
 import { ContactDetailCard } from '@/components/contacts/ContactDetailCard';
 import { QuickActions } from '@/components/home';
+import Hls from 'hls.js';
 import {
     HomeIcon, CalendarIcon, UsersIcon, SettingsIcon, VideoIcon,
     ClockIcon, LogoutIcon, GridIcon, ListIcon, FilmIcon
@@ -35,7 +36,7 @@ export function Home() {
     const { user, isLoggedIn, logout, isLoading: authLoading } = useAuth();
 
     // 侧边栏状态
-    const [activeNav, setActiveNav] = useState<'home' | 'meetings' | 'contacts' | 'settings'>('home');
+    const [activeNav, setActiveNav] = useState<'home' | 'meetings' | 'myRecordings' | 'contacts' | 'settings'>('home');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [meetingTab, setMeetingTab] = useState<'ongoing' | 'scheduled' | 'history'>('ongoing');
 
@@ -61,11 +62,22 @@ export function Home() {
     const [contactsLoading, setContactsLoading] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
 
+    // 存储管理状态
+    const [storageStats, setStorageStats] = useState<{ usedGB: string, totalGB: number, fileCount: number, usagePercent: number } | null>(null);
+    const [storageFiles, setStorageFiles] = useState<Array<{ key: string, name: string, size: number, lastModified: string, url?: string }>>([]);
+    const [storageLoading, setStorageLoading] = useState(false);
+    const [renameFile, setRenameFile] = useState<{ key: string, name: string } | null>(null);
+    const [newFileName, setNewFileName] = useState('');
+    const [selectedFile, setSelectedFile] = useState<{ key: string, name: string, url: string } | null>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
+
     // 会议列表状态（从 API 加载）
     const [ongoingMeetings, setOngoingMeetings] = useState<MeetingListItem[]>([]);
     const [scheduledMeetings, setScheduledMeetings] = useState<MeetingListItem[]>([]);
     const [historyMeetings, setHistoryMeetings] = useState<MeetingListItem[]>([]);
-    const [_meetingsLoading, setMeetingsLoading] = useState(false);
+    const [meetingsLoading, setMeetingsLoading] = useState(false);
+    const [meetingSearch, setMeetingSearch] = useState('');
+    const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
     // 加载会议列表
     const loadMeetings = useCallback(async () => {
@@ -76,6 +88,7 @@ export function Home() {
             setOngoingMeetings(data.ongoing);
             setScheduledMeetings(data.scheduled);
             setHistoryMeetings(data.history);
+            setLastRefreshTime(new Date());
         } catch (error) {
             console.error('加载会议列表失败:', error);
         } finally {
@@ -127,6 +140,141 @@ export function Home() {
             console.error('同步联系人失败:', error);
         } finally {
             setIsSyncing(false);
+        }
+    };
+
+    // 加载存储数据
+    const loadStorageData = useCallback(async () => {
+        setStorageLoading(true);
+        try {
+            const [statsRes, filesRes] = await Promise.all([
+                fetchWithTimeout(`${API_BASE_URL}/api/storage/stats`, {}, DEFAULT_TIMEOUT),
+                fetchWithTimeout(`${API_BASE_URL}/api/storage/files`, {}, DEFAULT_TIMEOUT),
+            ]);
+            const statsResult = await statsRes.json();
+            const filesResult = await filesRes.json();
+            if (statsResult.success) setStorageStats(statsResult.data);
+            if (filesResult.success) setStorageFiles(filesResult.data || []);
+        } catch (error) {
+            console.error('加载存储数据失败:', error);
+        } finally {
+            setStorageLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (activeNav === 'myRecordings') {
+            loadStorageData();
+        }
+    }, [activeNav, loadStorageData]);
+
+    // 初始化 HLS.js 播放器
+    useEffect(() => {
+        if (!selectedFile || !selectedFile.url || !videoRef.current) return;
+
+        const video = videoRef.current;
+        const videoSrc = selectedFile.url;
+
+        // 检查浏览器是否原生支持 HLS
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Safari 原生支持，直接使用
+            video.src = videoSrc;
+        } else if (Hls.isSupported()) {
+            // 使用 hls.js
+            const hls = new Hls({
+                enableWorker: true,
+                lowLatencyMode: false,
+            });
+            hls.loadSource(videoSrc);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                video.play().catch(e => console.log('播放失败:', e));
+            });
+            hls.on(Hls.Events.ERROR, (event, data) => {
+                console.error('HLS 错误:', data);
+            });
+
+            // 清理函数
+            return () => {
+                hls.destroy();
+            };
+        } else {
+            console.error('此浏览器不支持 HLS 播放');
+        }
+    }, [selectedFile]);
+
+    // 格式化文件大小
+    const formatFileSize = (bytes: number) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    // 格式化存储日期
+    const formatStorageDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    };
+
+    // 删除文件
+    const handleDeleteFile = async (file: { key: string, name: string }) => {
+        if (!window.confirm(`确定要删除 "${file.name}" 吗？此操作不可恢复。`)) return;
+        try {
+            const response = await fetchWithTimeout(
+                `${API_BASE_URL}/api/storage/files/${file.key}`,
+                { method: 'DELETE' },
+                DEFAULT_TIMEOUT
+            );
+            const result = await response.json();
+            if (result.success) await loadStorageData();
+            else alert('删除失败：' + result.error);
+        } catch (error) {
+            console.error('删除文件失败:', error);
+            alert('删除失败');
+        }
+    };
+
+    // 打开重命名对话框
+    const openRenameDialog = (file: { key: string, name: string }) => {
+        setRenameFile(file);
+        const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        setNewFileName(nameWithoutExt);
+    };
+
+    // 执行重命名
+    const handleRenameFile = async () => {
+        if (!renameFile || !newFileName.trim()) return;
+        const ext = renameFile.name.substring(renameFile.name.lastIndexOf('.'));
+        const fullNewName = newFileName.trim() + ext;
+        try {
+            const response = await fetchWithTimeout(
+                `${API_BASE_URL}/api/storage/files/rename`,
+                {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: renameFile.key, newName: fullNewName }),
+                },
+                DEFAULT_TIMEOUT
+            );
+            const result = await response.json();
+            if (result.success) {
+                setRenameFile(null);
+                await loadStorageData();
+            } else {
+                alert('重命名失败：' + result.error);
+            }
+        } catch (error) {
+            console.error('重命名失败:', error);
+            alert('重命名失败');
+        }
+    };
+
+    // 播放文件
+    const handlePlayFile = (file: { key: string, name: string, url?: string }) => {
+        if (file.url && file.name.endsWith('.m3u8')) {
+            setSelectedFile({ key: file.key, name: file.name, url: file.url });
         }
     };
 
@@ -370,6 +518,13 @@ export function Home() {
                         <span>{t('home.meetings')}</span>
                     </button>
                     <button
+                        className={`${styles.navItem} ${activeNav === 'myRecordings' ? styles.active : ''}`}
+                        onClick={() => setActiveNav('myRecordings')}
+                    >
+                        <FilmIcon />
+                        <span>{t('home.myRecordings')}</span>
+                    </button>
+                    <button
                         className={`${styles.navItem} ${activeNav === 'contacts' ? styles.active : ''}`}
                         onClick={() => setActiveNav('contacts')}
                     >
@@ -411,6 +566,7 @@ export function Home() {
                     <h1 className={styles.pageTitle}>
                         {activeNav === 'home' && t('home.dashboard')}
                         {activeNav === 'meetings' && t('home.meetings')}
+                        {activeNav === 'myRecordings' && t('home.myRecordings')}
                         {activeNav === 'contacts' && t('home.contacts')}
                     </h1>
                 </header>
@@ -418,6 +574,33 @@ export function Home() {
                 {/* Home 视图 */}
                 {activeNav === 'home' && (
                     <>
+                        {/* 欢迎问候 */}
+                        {user && (
+                            <div className={styles.welcomeSection}>
+                                <h2 className={styles.welcomeGreeting}>
+                                    {t('home.welcomeGreeting', {
+                                        time: new Date().getHours() < 12
+                                            ? t('home.morning')
+                                            : new Date().getHours() < 18
+                                                ? t('home.afternoon')
+                                                : t('home.evening'),
+                                        name: user.username
+                                    })}
+                                </h2>
+                                <p className={styles.todayOverview}>
+                                    {(() => {
+                                        const today = new Date();
+                                        const todayStr = today.toDateString();
+                                        const allMeetings = [...ongoingMeetings, ...scheduledMeetings];
+                                        const todayCount = allMeetings.filter(m => m.startTime && m.startTime.toDateString() === todayStr).length;
+                                        return todayCount > 0
+                                            ? t('home.meetingsToday', { count: todayCount })
+                                            : t('home.noMeetingsToday');
+                                    })()}
+                                </p>
+                            </div>
+                        )}
+
                         {/* 快捷操作卡片 */}
                         <QuickActions
                             onCreateMeeting={() => setShowCreateModal(true)}
@@ -434,102 +617,164 @@ export function Home() {
                                         <span className={styles.badge}>{[...ongoingMeetings, ...scheduledMeetings].length}</span>
                                     )}
                                 </h2>
-                                <div className={styles.viewToggle}>
+                                <div className={styles.sectionControls}>
+                                    {/* 搜索框 */}
+                                    <div className={styles.searchBox}>
+                                        <input
+                                            type="text"
+                                            className={styles.searchInput}
+                                            placeholder={t('home.searchMeetings')}
+                                            value={meetingSearch}
+                                            onChange={(e) => setMeetingSearch(e.target.value)}
+                                        />
+                                        <svg className={styles.searchIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <circle cx="11" cy="11" r="8" />
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                        </svg>
+                                    </div>
+                                    {/* 刷新按钮 */}
                                     <button
-                                        className={`${styles.viewBtn} ${viewMode === 'grid' ? styles.active : ''}`}
-                                        onClick={() => setViewMode('grid')}
+                                        className={`${styles.refreshBtn} ${meetingsLoading ? styles.spinning : ''}`}
+                                        onClick={loadMeetings}
+                                        disabled={meetingsLoading}
+                                        title={lastRefreshTime
+                                            ? t('home.lastRefreshed', { time: lastRefreshTime.toLocaleTimeString() })
+                                            : t('home.refresh')
+                                        }
                                     >
-                                        <GridIcon />
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M23 4v6h-6" />
+                                            <path d="M1 20v-6h6" />
+                                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                                        </svg>
                                     </button>
-                                    <button
-                                        className={`${styles.viewBtn} ${viewMode === 'list' ? styles.active : ''}`}
-                                        onClick={() => setViewMode('list')}
-                                    >
-                                        <ListIcon />
-                                    </button>
+                                    <div className={styles.viewToggle}>
+                                        <button
+                                            className={`${styles.viewBtn} ${viewMode === 'grid' ? styles.active : ''}`}
+                                            onClick={() => setViewMode('grid')}
+                                        >
+                                            <GridIcon />
+                                        </button>
+                                        <button
+                                            className={`${styles.viewBtn} ${viewMode === 'list' ? styles.active : ''}`}
+                                            onClick={() => setViewMode('list')}
+                                        >
+                                            <ListIcon />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
                             {/* 显示进行中和即将开始的会议 */}
-                            {[...ongoingMeetings, ...scheduledMeetings].length === 0 ? (
-                                <div className={styles.emptyState}>
-                                    <CalendarIcon />
-                                    <p>{t('home.noMeetings')}</p>
-                                </div>
-                            ) : (
-                                <div className={`${styles.meetingGrid} ${viewMode === 'list' ? styles.listView : ''}`}>
-                                    {[...ongoingMeetings, ...scheduledMeetings].slice(0, 6).map((meeting) => (
-                                        <div key={meeting.roomId} className={styles.meetingCard}>
-                                            <div className={styles.meetingCardHeader}>
-                                                <div className={styles.meetingDateBadge}>
-                                                    {meeting.startTime && (
-                                                        <>
-                                                            <span className={styles.dateDay}>{meeting.startTime.getDate()}</span>
-                                                            <span className={styles.dateMonth}>
-                                                                {meeting.startTime.toLocaleDateString('default', { month: 'short' })}
-                                                            </span>
-                                                        </>
-                                                    )}
-                                                </div>
-                                                <div className={`${styles.meetingStatus} ${getStatusClass(meeting.status)}`}>
-                                                    {getStatusLabel(meeting.status)}
-                                                </div>
+                            {(() => {
+                                const allMeetings = [...ongoingMeetings, ...scheduledMeetings];
+                                const filteredMeetings = meetingSearch.trim()
+                                    ? allMeetings.filter(m =>
+                                        m.title.toLowerCase().includes(meetingSearch.toLowerCase()) ||
+                                        m.roomId.toLowerCase().includes(meetingSearch.toLowerCase()) ||
+                                        (m.hostName && m.hostName.toLowerCase().includes(meetingSearch.toLowerCase()))
+                                    )
+                                    : allMeetings;
+
+                                if (allMeetings.length === 0) {
+                                    return (
+                                        <div className={styles.emptyStateEnhanced}>
+                                            <div className={styles.emptyStateIcon}>
+                                                <CalendarIcon />
                                             </div>
-                                            <div className={styles.meetingInfo}>
-                                                <h3 className={styles.meetingTitle}>{meeting.title}</h3>
-                                                <p className={styles.meetingId}>ID: {meeting.roomId}</p>
-                                                {meeting.startTime && (
-                                                    <p className={styles.meetingTime}>
-                                                        <ClockIcon />
-                                                        <span>{formatDate(meeting.startTime)}</span>
-                                                        <span className={styles.timeSeparator}>·</span>
-                                                        <span>{formatTime(meeting.startTime)}</span>
-                                                        {meeting.duration && (
+                                            <h3>{t('home.emptyMeetingsTitle')}</h3>
+                                            <p>{t('home.emptyMeetingsDesc')}</p>
+                                            <Button onClick={() => setShowCreateModal(true)}>
+                                                {t('home.emptyMeetingsAction')}
+                                            </Button>
+                                        </div>
+                                    );
+                                }
+
+                                if (filteredMeetings.length === 0) {
+                                    return (
+                                        <div className={styles.emptyState}>
+                                            <CalendarIcon />
+                                            <p>{t('home.noSearchResults')}</p>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div className={`${styles.meetingGrid} ${viewMode === 'list' ? styles.listView : ''}`}>
+                                        {filteredMeetings.slice(0, 6).map((meeting) => (
+                                            <div key={meeting.roomId} className={styles.meetingCard}>
+                                                <div className={styles.meetingCardHeader}>
+                                                    <div className={styles.meetingDateBadge}>
+                                                        {meeting.startTime && (
                                                             <>
-                                                                <span className={styles.timeSeparator}>·</span>
-                                                                <span>{meeting.duration} {t('schedule.minutes') || '分钟'}</span>
+                                                                <span className={styles.dateDay}>{meeting.startTime.getDate()}</span>
+                                                                <span className={styles.dateMonth}>
+                                                                    {meeting.startTime.toLocaleDateString('default', { month: 'short' })}
+                                                                </span>
                                                             </>
                                                         )}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <div className={styles.meetingActions}>
-                                                <div className={styles.participants}>
-                                                    {meeting.participantCount !== undefined && meeting.participantCount > 0 ? (
-                                                        <>
-                                                            <UsersIcon />
-                                                            <span>{meeting.participantCount} {t('home.participants') || '人参与'}</span>
-                                                        </>
-                                                    ) : (
-                                                        <span className={styles.hostBadge}>{t('home.host') || '主持人'}</span>
+                                                    </div>
+                                                    <div className={`${styles.meetingStatus} ${getStatusClass(meeting.status)}`}>
+                                                        {getStatusLabel(meeting.status)}
+                                                    </div>
+                                                </div>
+                                                <div className={styles.meetingInfo}>
+                                                    <h3 className={styles.meetingTitle}>{meeting.title}</h3>
+                                                    <p className={styles.meetingId}>ID: {meeting.roomId}</p>
+                                                    {meeting.startTime && (
+                                                        <p className={styles.meetingTime}>
+                                                            <ClockIcon />
+                                                            <span>{formatDate(meeting.startTime)}</span>
+                                                            <span className={styles.timeSeparator}>·</span>
+                                                            <span>{formatTime(meeting.startTime)}</span>
+                                                            {meeting.duration && (
+                                                                <>
+                                                                    <span className={styles.timeSeparator}>·</span>
+                                                                    <span>{meeting.duration} {t('schedule.minutes') || '分钟'}</span>
+                                                                </>
+                                                            )}
+                                                        </p>
                                                     )}
                                                 </div>
-                                                <div className={styles.cardButtons}>
-                                                    {/* 录制入口 - 仅主持人显示 */}
-                                                    {meeting.isHost && (
-                                                        <button
-                                                            className={styles.recordingBtn}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                navigate(`/recordings?meetingId=${meeting.roomId}`);
-                                                            }}
-                                                            title={t('recordings.viewRecording')}
+                                                <div className={styles.meetingActions}>
+                                                    <div className={styles.participants}>
+                                                        {meeting.participantCount !== undefined && meeting.participantCount > 0 ? (
+                                                            <>
+                                                                <UsersIcon />
+                                                                <span>{meeting.participantCount} {t('home.participants') || '人参与'}</span>
+                                                            </>
+                                                        ) : (
+                                                            <span className={styles.hostBadge}>{t('home.host') || '主持人'}</span>
+                                                        )}
+                                                    </div>
+                                                    <div className={styles.cardButtons}>
+                                                        {/* 录制入口 - 仅主持人显示 */}
+                                                        {meeting.isHost && (
+                                                            <button
+                                                                className={styles.recordingBtn}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    navigate(`/recordings?meetingId=${meeting.roomId}`);
+                                                                }}
+                                                                title={t('recordings.viewRecording')}
+                                                            >
+                                                                <FilmIcon />
+                                                            </button>
+                                                        )}
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => navigate(`/meeting/${meeting.roomId}`)}
                                                         >
-                                                            <FilmIcon />
-                                                        </button>
-                                                    )}
-                                                    <Button
-                                                        size="sm"
-                                                        onClick={() => navigate(`/meeting/${meeting.roomId}`)}
-                                                    >
-                                                        {meeting.status === 'ongoing' ? t('home.join') : t('home.start')}
-                                                    </Button>
+                                                            {meeting.status === 'ongoing' ? t('home.join') : t('home.start')}
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                                        ))}
+                                    </div>
+                                );
+                            })()}
                         </section>
                     </>
                 )}
@@ -747,6 +992,118 @@ export function Home() {
                         )}
                     </section>
                 )}
+
+                {/* My Recordings 视图 */}
+                {activeNav === 'myRecordings' && (
+                    <>
+                        {/* 存储统计卡片 */}
+                        {storageStats && (
+                            <div className={styles.storageStatsCard}>
+                                <h2 className={styles.storageTitle}>{t('home.storageSpace')}</h2>
+                                <div className={styles.progressBar}>
+                                    <div
+                                        className={styles.progressFill}
+                                        style={{ width: `${storageStats.usagePercent}%` }}
+                                    />
+                                </div>
+                                <div className={styles.storageInfo}>
+                                    <span className={styles.storageUsage}>
+                                        {storageStats.usedGB} GB / {storageStats.totalGB}.00 GB
+                                    </span>
+                                    <span className={styles.storageFileCount}>
+                                        {t('home.totalFiles', { count: storageStats.fileCount })}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 文件列表 */}
+                        <section className={styles.storageSection}>
+                            {storageLoading ? (
+                                <div className={styles.loading}>
+                                    <div className={styles.spinner}></div>
+                                    <span>{t('common.loading')}</span>
+                                </div>
+                            ) : storageFiles.length === 0 ? (
+                                <div className={styles.emptyState}>
+                                    <FilmIcon />
+                                    <h3>{t('home.noRecordingFiles')}</h3>
+                                    <p>{t('home.recordingHint')}</p>
+                                </div>
+                            ) : (
+                                <div className={styles.storageTable}>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>{t('home.fileName')}</th>
+                                                <th>{t('home.createdAt')}</th>
+                                                <th>{t('home.fileSize')}</th>
+                                                <th>{t('home.actions')}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {storageFiles.map((file) => (
+                                                <tr key={file.key}>
+                                                    <td className={styles.fileName}>{file.name}</td>
+                                                    <td>{formatStorageDate(file.lastModified)}</td>
+                                                    <td>{formatFileSize(file.size)}</td>
+                                                    <td className={styles.fileActions}>
+                                                        {/* 播放按钮 - 仅 .m3u8 文件 */}
+                                                        {file.url && file.name.endsWith('.m3u8') && (
+                                                            <button
+                                                                className={styles.fileActionBtn}
+                                                                onClick={() => handlePlayFile(file)}
+                                                                title={t('home.play')}
+                                                            >
+                                                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                                                    <path d="M8 5v14l11-7z" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                        {/* 导出按钮 */}
+                                                        {file.url && (
+                                                            <button
+                                                                className={styles.fileActionBtn}
+                                                                onClick={() => window.open(file.url, '_blank')}
+                                                                title={t('home.export')}
+                                                            >
+                                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                                                    <polyline points="7 10 12 15 17 10" />
+                                                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            className={styles.fileActionBtn}
+                                                            onClick={() => openRenameDialog(file)}
+                                                            title={t('home.rename')}
+                                                        >
+                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            className={`${styles.fileActionBtn} ${styles.danger}`}
+                                                            onClick={() => handleDeleteFile(file)}
+                                                            title={t('common.delete')}
+                                                        >
+                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                <polyline points="3 6 5 6 21 6" />
+                                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                                            </svg>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </section>
+                    </>
+                )}
             </main>
 
             {/* 创建会议弹窗 */}
@@ -829,6 +1186,65 @@ export function Home() {
             />
 
             {/* 退出登录确认弹窗 */}
+            {/* 重命名文件弹窗 */}
+            {
+                renameFile && (
+                    <Modal
+                        isOpen={true}
+                        onClose={() => setRenameFile(null)}
+                        title={t('home.renameFile')}
+                        footer={
+                            <>
+                                <Button variant="secondary" onClick={() => setRenameFile(null)}>
+                                    {t('common.cancel')}
+                                </Button>
+                                <Button onClick={handleRenameFile} disabled={!newFileName.trim()}>
+                                    {t('common.confirm')}
+                                </Button>
+                            </>
+                        }
+                    >
+                        <div className={styles.form}>
+                            <Input
+                                label={t('home.fileName')}
+                                value={newFileName}
+                                onChange={(e) => setNewFileName(e.target.value)}
+                                placeholder={t('home.newFileName')}
+                                autoFocus
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && newFileName.trim()) handleRenameFile();
+                                    if (e.key === 'Escape') setRenameFile(null);
+                                }}
+                            />
+                        </div>
+                    </Modal>
+                )
+            }
+
+            {/* 视频播放器弹窗 */}
+            {selectedFile && selectedFile.url && (
+                <div
+                    className={styles.playerOverlay}
+                    onClick={() => setSelectedFile(null)}
+                >
+                    <div
+                        className={styles.player}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3>{selectedFile.name}</h3>
+                        <video
+                            ref={videoRef}
+                            controls
+                            className={styles.video}
+                        />
+                        <Button onClick={() => setSelectedFile(null)}>
+                            {t('home.closePlayer')}
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* 退出登录确认弹窗 */}
             <Modal
                 isOpen={showLogoutModal}
                 onClose={() => !isLoggingOut && setShowLogoutModal(false)}
@@ -875,7 +1291,7 @@ export function Home() {
                     )}
                 </div>
             </Modal>
-        </div>
+        </div >
     );
 }
 

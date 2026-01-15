@@ -9,6 +9,7 @@ import { Home } from '@/pages/Home';
 import { Meeting } from '@/pages/Meeting';
 import { PreJoin } from '@/pages/PreJoin';
 import { Recordings } from '@/pages/Recordings';
+import { MyRecordings } from '@/pages/MyRecordings';
 import { Login } from '@/pages/Login';
 import { Settings } from '@/pages/Settings';
 
@@ -45,6 +46,14 @@ function App() {
                 element={
                   <PrivateRoute>
                     <Recordings />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/my-recordings"
+                element={
+                  <PrivateRoute>
+                    <MyRecordings />
                   </PrivateRoute>
                 }
               />

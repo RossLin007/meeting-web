@@ -1,0 +1,356 @@
+/* 我的录制 - 存储管理页面样式 */
+
+.container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #1a1f2e 0%, #2d1b3d 100%);
+    color: white;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem 2rem;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.backBtn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+}
+
+.backBtn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateX(-2px);
+}
+
+.backBtn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.title {
+    flex: 1;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.refreshBtn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+}
+
+.refreshBtn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.refreshBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.refreshBtn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 存储统计卡片 */
+.statsCard {
+    margin: 2rem;
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.statsCard h2 {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.progressBar {
+    height: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.progressFill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+    transition: width 0.5s ease;
+    border-radius: 6px;
+}
+
+.statsInfo {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.usage {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.fileCount {
+    opacity: 0.7;
+    font-size: 0.95rem;
+}
+
+/* 主内容区 */
+.main {
+    padding: 0 2rem 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.loading,
+.empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    gap: 1rem;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.empty h3 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.empty p {
+    margin: 0;
+    opacity: 0.7;
+}
+
+/* 文件列表表格 */
+.tableContainer {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table thead {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.table th {
+    padding: 1rem 1.5rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.7;
+}
+
+.table tbody tr {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+}
+
+.table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.table td {
+    padding: 1rem 1.5rem;
+}
+
+.fileName {
+    font-weight: 500;
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.actionBtn {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.actionBtn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.actionBtn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.actionBtn.danger:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+/* 重命名对话框 */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modalContent {
+    background: #1a1f2e;
+    border-radius: 12px;
+    padding: 2rem;
+    min-width: 400px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modalContent h3 {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.2rem;
+}
+
+.modalContent input {
+    width: 100%;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: white;
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.modalContent input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.modalActions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.modalActions button {
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.modalActions button {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.modalActions button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.modalActions button.primary {
+    background: #3b82f6;
+}
+
+.modalActions button.primary:hover:not(:disabled) {
+    background: #2563eb;
+}
+
+.modalActions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+
+    .statsCard,
+    .main {
+        margin: 1rem;
+        padding: 1rem;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .fileName {
+        max-width: 200px;
+    }
+
+    .modalContent {
+        min-width: 90%;
+        margin: 1rem;
+    }
+}
