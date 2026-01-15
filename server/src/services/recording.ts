@@ -110,7 +110,7 @@ export async function startCloudRecording(params: StartRecordingParams): Promise
     // 简化逻辑：直接使用传入的 useMixStream 参数
     // 如果 useMixStream 为 false，使用单流录制(1)
     // 如果 useMixStream 为 true，使用混流录制(2)
-    recordMode = useMixStream ? 2 : 1;
+    // recordMode = useMixStream ? 2 : 1;
 
     try {
         // 判断房间号类型：纯数字用整型(1)，否则用字符串(0)
@@ -132,9 +132,9 @@ export async function startCloudRecording(params: StartRecordingParams): Promise
             // 录制参数
             RecordParams: {
                 RecordMode: recordMode,   // 1=单流, 2=混流
-                MaxIdleTime: 60,          // 最大空闲时间 60 秒
-                StreamType: 0,            // 0=音视频, 1=仅音频, 2=仅视频
-                OutputFormat: 0,          // 0：HLS 1：HLS + MP4 2：HLS + FLV 3：MP4 4：FLV 
+                MaxIdleTime: 30,          // 最大空闲时间 60 秒
+                StreamType: 1,            // 0=音视频, 1=仅音频, 2=仅视频
+                OutputFormat: 3,          // 0：HLS 1：HLS + MP4 2：HLS + FLV 3：MP4 4：FLV
             },
 
             // 存储参数 - 腾讯云 COS

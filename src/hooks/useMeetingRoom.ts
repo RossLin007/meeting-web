@@ -1,7 +1,10 @@
 // 智会 - 会议室核心逻辑 Hook
 
 import { useEffect, useRef, useCallback } from 'react';
-import { useTRTC, useIM, useRoomState } from '@/hooks';
+// 注意：直接导入而非从 index 导入，避免循环依赖
+import { useTRTC } from './useTRTC';
+import { useIM } from './useIM';
+import { useRoomState } from './useRoomState';
 import { useMeetingStore } from '@/services/store';
 import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
 import { validateRoomId, validateUserId } from '@/utils/urlValidation';
