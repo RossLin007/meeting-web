@@ -278,6 +278,14 @@ class SocketService {
         console.log('📤 离开房间');
     }
 
+    /**
+     * 请求房间状态（用于客户端重同步）
+     */
+    requestRoomState(): void {
+        if (!this.socket || !this.currentMeetingId) return;
+        this.socket.emit('room:state:request', { meetingId: this.currentMeetingId });
+    }
+
     // ========== 状态广播 ==========
 
     /**
@@ -321,6 +329,17 @@ class SocketService {
         this.socket.emit('member:hand', {
             meetingId: this.currentMeetingId,
             isRaised,
+        });
+    }
+
+    /**
+     * 更新显示名称
+     */
+    updateUserName(userName: string): void {
+        if (!this.socket || !this.currentMeetingId) return;
+        this.socket.emit('member:rename', {
+            meetingId: this.currentMeetingId,
+            userName,
         });
     }
 

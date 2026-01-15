@@ -285,6 +285,8 @@ const enUS = {
         stop: 'Stop Recording',
         startRecording: 'Start Recording',
         stopRecording: 'Stop Recording',
+        starting: 'Starting...',
+        stopping: 'Stopping...',
         recording: 'Recording',
         recordingInProgress: 'Recording in Progress',
         noPermission: 'No permission to record',

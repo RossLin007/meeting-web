@@ -298,7 +298,7 @@ class TRTCService {
     }
 
     // 播放远程视频
-    async startRemoteVideo(userId: string, view: string | HTMLElement, streamType = TRTC.TYPE.STREAM_TYPE_MAIN): Promise<void> {
+    async startRemoteVideo(userId: string, view: string | HTMLElement, streamType = TRTC.TYPE.STREAM_TYPE_MAIN): Promise<boolean> {
         if (!this.trtc) {
             throw new Error('TRTC not initialized');
         }
@@ -306,12 +306,13 @@ class TRTCService {
         try {
             await this.trtc.startRemoteVideo({ userId, streamType, view });
             console.log('Remote video started:', userId);
+            return true;
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            // 静默处理：远程用户尚未发布视频流（这是正常情况，用户可能关闭了摄像头）
+            // 远程用户尚未发布视频流或流未准备好
             if (errorMsg.includes('not publishing') || errorMsg.includes('INVALID_OPERATION')) {
                 console.log('⏳ 远程用户尚未发布视频流:', userId);
-                return;
+                return false;
             }
             console.error('Failed to start remote video:', error);
             throw error;

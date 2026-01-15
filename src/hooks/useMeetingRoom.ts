@@ -239,8 +239,13 @@ export function useMeetingRoom({
             if (!activeRemoteStreams.current.has(userId)) {
                 const element = document.getElementById(`remote-video-${userId}`);
                 if (element) {
-                    startRemoteVideo(userId, element);
-                    activeRemoteStreams.current.add(userId);
+                    startRemoteVideo(userId, element)
+                        .then((started) => {
+                            if (started) {
+                                activeRemoteStreams.current.add(userId);
+                            }
+                        })
+                        .catch((err) => console.error('远程视频订阅失败:', userId, err));
                 }
             }
         });

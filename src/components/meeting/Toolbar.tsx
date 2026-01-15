@@ -164,6 +164,8 @@ interface ToolbarProps {
     isRecording: boolean;
     isRoomRecording: boolean;  // 房间是否正在录制（其他人录制时也显示）
     recordingTime: number;
+    isStarting?: boolean;
+    isStopping?: boolean;
     canRecord: boolean;  // 是否有权限录制（主持人/联席主持人）
     onToggleMic: () => void;
     onToggleCamera: () => void;
@@ -193,6 +195,8 @@ function ToolbarComponent({
     isRecording,
     isRoomRecording,
     recordingTime,
+    isStarting = false,
+    isStopping = false,
     canRecord,
     onToggleMic,
     onToggleCamera,
@@ -209,6 +213,7 @@ function ToolbarComponent({
 }: ToolbarProps) {
     const { t } = useTranslation();
     const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const isRecordingPending = isStarting || isStopping;
 
     // 格式化录制时间
     const formatTime = (seconds: number) => {
@@ -319,6 +324,7 @@ function ToolbarComponent({
                             (isRecording || isRoomRecording) && styles.recording
                         )}
                         onClick={isRecording ? onStopRecording : onStartRecording}
+                        disabled={isRecordingPending}
                         title={isRecording || isRoomRecording
                             ? t('recording.stop')
                             : t('recording.start')
@@ -328,9 +334,13 @@ function ToolbarComponent({
                             {(isRecording || isRoomRecording) ? <RecordingIcon /> : <RecordIcon />}
                         </span>
                         <span className={styles.label}>
-                            {(isRecording || isRoomRecording)
-                                ? formatTime(recordingTime)
-                                : t('recording.start')
+                            {isStarting
+                                ? t('recording.starting', '启动中...')
+                                : isStopping
+                                    ? t('recording.stopping', '停止中...')
+                                    : (isRecording || isRoomRecording)
+                                        ? formatTime(recordingTime)
+                                        : t('recording.start')
                             }
                         </span>
                     </button>

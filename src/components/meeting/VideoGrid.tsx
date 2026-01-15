@@ -35,6 +35,7 @@ interface VideoGridProps {
     screenShareUserId: string | null;
     layout?: LayoutType;  // 布局类型
     activeSpeakerId?: string | null;  // 当前发言者 ID
+    registerRemoteVideo?: (userId: string) => (element: HTMLDivElement | null) => void;
 }
 
 function VideoGridComponent({
@@ -51,6 +52,7 @@ function VideoGridComponent({
     screenShareUserId,
     layout = 'gallery',
     activeSpeakerId = null,
+    registerRemoteVideo,
 }: VideoGridProps) {
     const { t } = useTranslation();
 
@@ -144,6 +146,7 @@ function VideoGridComponent({
                             <div
                                 className={styles.video}
                                 id={`remote-video-${userId}`}
+                                ref={registerRemoteVideo ? registerRemoteVideo(userId) : undefined}
                             >
                                 <div className={styles.placeholder}>
                                     <div className={styles.avatar}>
@@ -179,9 +182,9 @@ export const VideoGrid = memo(VideoGridComponent, (prevProps, nextProps) => {
         prevProps.activeSpeakerId === nextProps.activeSpeakerId &&
         prevProps.currentUserId === nextProps.currentUserId &&
         prevProps.currentUserName === nextProps.currentUserName &&
-        JSON.stringify(prevProps.memberAudioStates) === JSON.stringify(nextProps.memberAudioStates)
+        JSON.stringify(prevProps.memberAudioStates) === JSON.stringify(nextProps.memberAudioStates) &&
+        JSON.stringify(prevProps.remoteUserNames) === JSON.stringify(nextProps.remoteUserNames)
     );
 });
 
 export default VideoGrid;
-

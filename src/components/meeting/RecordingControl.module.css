@@ -16,6 +16,10 @@
     border: 1px solid rgba(220, 38, 38, 0.5);
 }
 
+.container.pending {
+    opacity: 0.75;
+}
+
 /* 录制指示器 */
 .indicator {
     width: 8px;
@@ -88,6 +92,12 @@
 
 .stopBtn:hover {
     background-color: #b91c1c;
+}
+
+.startBtn:disabled,
+.stopBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .stopBtn svg {

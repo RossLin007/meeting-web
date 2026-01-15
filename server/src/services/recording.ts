@@ -96,21 +96,8 @@ export async function startCloudRecording(params: StartRecordingParams): Promise
     }
 
     // 根据人数决定录制模式
-    // 1个人时使用单流录制(1)，多人时使用混流录制(2)
-    // 注意：单流录制会自动分开存储每个人的流，不需要混流参数
-    let recordMode = 2; // 默认混流
-
-    // 如果明确指定了 useMixStream=false，或者没有指定且人数<=1，则使用单流
-    if (useMixStream === false || (useMixStream === undefined && roomId)) {
-        // 这里还需要结合 memberCount 判断，但在 startCloudRecording 函数里我们没有 memberCount
-        // 我们假设如果调用方传递了 useMixStream，就听调用方的
-        // 如果没传，默认行为：
-    }
-
-    // 简化逻辑：直接使用传入的 useMixStream 参数
-    // 如果 useMixStream 为 false，使用单流录制(1)
-    // 如果 useMixStream 为 true，使用混流录制(2)
-    // recordMode = useMixStream ? 2 : 1;
+    // 1=单流录制, 2=混流录制（九宫格）
+    const recordMode = useMixStream ? 2 : 1;
 
     try {
         // 判断房间号类型：纯数字用整型(1)，否则用字符串(0)
@@ -132,8 +119,8 @@ export async function startCloudRecording(params: StartRecordingParams): Promise
             // 录制参数
             RecordParams: {
                 RecordMode: recordMode,   // 1=单流, 2=混流
-                MaxIdleTime: 30,          // 最大空闲时间 60 秒
-                StreamType: 1,            // 0=音视频, 1=仅音频, 2=仅视频
+                MaxIdleTime: 60,          // 最大空闲时间 60 秒
+                StreamType: 0,            // 0=音视频, 1=仅音频, 2=仅视频
                 OutputFormat: 3,          // 0：HLS 1：HLS + MP4 2：HLS + FLV 3：MP4 4：FLV
             },
 
@@ -162,7 +149,7 @@ export async function startCloudRecording(params: StartRecordingParams): Promise
                 },
             };
             request.MixLayoutParams = {
-                MixLayoutMode: 3,         // 3=自适应布局
+                MixLayoutMode: 3,         // 3=九宫格布局
             };
         }
 
@@ -211,27 +198,12 @@ export async function startCloudRecording(params: StartRecordingParams): Promise
         console.log('========================================');
 
         // 如果指定了订阅用户，无论是单流还是混流，都进行显式订阅
-        // 这通常能解决"录制任务空闲超时"或"文件为空"的问题
         if (taskId && subscribeUserIds && subscribeUserIds.length > 0) {
-            try {
-                console.log(`📡 正在更新订阅名单 (ModifyCloudRecording)...`);
-                console.log(`   👥 订阅用户: ${subscribeUserIds.join(', ')}`);
-
-                const modifyRequest = {
-                    SdkAppId: sdkAppId,
-                    TaskId: taskId,
-                    SubscribeStreamUserIds: {
-                        SubscribeAudioUserIds: subscribeUserIds,
-                        SubscribeVideoUserIds: subscribeUserIds,
-                    }
-                };
-
-                await client.ModifyCloudRecording(modifyRequest);
-                console.log(`✅ 订阅更新成功`);
-            } catch (modifyError: any) {
-                console.error(`⚠️ 订阅更新失败 (非致命):`, modifyError.message);
-                // 不中断流程，可能是 backend 录制不需要显式订阅
-            }
+            await updateRecordingSubscribers({
+                sdkAppId,
+                taskId,
+                subscribeUserIds,
+            });
         }
         console.log('========================================');
 
@@ -339,6 +311,34 @@ export async function stopCloudRecording(params: StopRecordingParams): Promise<R
             success: false,
             error: error.message || 'Unknown error',
         };
+    }
+}
+
+export async function updateRecordingSubscribers(params: {
+    sdkAppId: number;
+    taskId: string;
+    subscribeUserIds: string[];
+}): Promise<void> {
+    const { sdkAppId, taskId, subscribeUserIds } = params;
+    if (!taskId || subscribeUserIds.length === 0) return;
+
+    try {
+        console.log(`📡 正在更新订阅名单 (ModifyCloudRecording)...`);
+        console.log(`   👥 订阅用户: ${subscribeUserIds.join(', ')}`);
+
+        const modifyRequest = {
+            SdkAppId: sdkAppId,
+            TaskId: taskId,
+            SubscribeStreamUserIds: {
+                SubscribeAudioUserIds: subscribeUserIds,
+                SubscribeVideoUserIds: subscribeUserIds,
+            },
+        };
+
+        await client.ModifyCloudRecording(modifyRequest);
+        console.log('✅ 订阅更新成功');
+    } catch (modifyError: any) {
+        console.error('⚠️ 订阅更新失败 (非致命):', modifyError.message);
     }
 }
 
@@ -573,4 +573,5 @@ export default {
     updateRecordingInDB,
     getRecordingsByMeeting,
     updateRecordingVisibility,
+    updateRecordingSubscribers,
 };

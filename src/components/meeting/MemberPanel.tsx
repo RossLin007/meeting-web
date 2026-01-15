@@ -3,8 +3,6 @@
 import { useState, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
-import type { RemoteUser } from '@/types';
-import type { MemberMediaState } from '@/hooks/useRoomState';
 import styles from './MemberPanel.module.css';
 
 interface MemberInfo {
@@ -18,8 +16,6 @@ interface MemberInfo {
 }
 
 interface MemberPanelProps {
-    members: (RemoteUser & { userName?: string })[];
-    memberStates?: Map<string, MemberMediaState>;  // IM 广播的成员状态
     socketMembers?: Array<{  // Socket.io 成员状态
         userId: string;
         userName: string;
@@ -143,8 +139,6 @@ const HandRaiseIcon = () => (
 );
 
 function MemberPanelComponent({
-    members,
-    memberStates,
     socketMembers,
     currentUserId,
     currentUserName,
@@ -181,9 +175,8 @@ function MemberPanelComponent({
     // 判断当前用户是否为主持人（使用 hostId 或传入的 isHost prop）
     const currentIsHost = hostId === currentUserId || isHost;
 
-    // 构建成员列表（包含当前用户）- 优先使用 Socket 成员状态
+    // 构建成员列表（包含当前用户）- Socket 为唯一来源
     const allMembers = useMemo(() => {
-        // 如果有 Socket 成员数据，优先使用
         if (socketMembers && socketMembers.length > 0) {
             return socketMembers.map((m) => ({
                 userId: m.userId,
@@ -195,8 +188,6 @@ function MemberPanelComponent({
                 isHandRaised: m.isHandRaised,
             }));
         }
-
-        // 否则使用 TRTC + IM 状态
         return [
             {
                 userId: currentUserId,
@@ -207,28 +198,17 @@ function MemberPanelComponent({
                 isCameraOff: !isCameraOn,
                 isHandRaised: false,
             },
-            ...members.map((m) => {
-                const imState = memberStates?.get(m.userId);
-                return {
-                    userId: m.userId,
-                    userName: imState?.displayName || m.userName || m.userId,
-                    isHost: hostId === m.userId,
-                    isCoHost: false,
-                    isMuted: imState ? !imState.isAudioOn : !m.hasAudio,
-                    isCameraOff: imState ? !imState.isVideoOn : !m.hasVideo,
-                    isHandRaised: false,
-                };
-            }),
         ];
-    }, [socketMembers, currentUserId, currentUserName, currentIsHost, isMicOn, isCameraOn, members, hostId, memberStates]);
+    }, [socketMembers, currentUserId, currentUserName, currentIsHost, isMicOn, isCameraOn]);
 
     // 过滤成员 - 使用 useMemo 优化性能
     const filteredMembers = useMemo(() =>
-        allMembers.filter(
-            (m) =>
-                m.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                m.userId.toLowerCase().includes(searchQuery.toLowerCase())
-        ),
+        allMembers.filter((m) => {
+            const name = (m.userName || '').toLowerCase();
+            const id = (m.userId || '').toLowerCase();
+            const query = searchQuery.toLowerCase();
+            return name.includes(query) || id.includes(query);
+        }),
         [allMembers, searchQuery]
     );
 

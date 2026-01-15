@@ -206,6 +206,26 @@ export function registerHandlers(io: Server, socket: Socket): void {
 
             // 广播新成员加入
             socket.to(meetingId).emit('member:joined', newMember);
+
+            // 如果正在录制，更新订阅名单
+            if (state.recording?.isRecording && state.recording.taskId) {
+                try {
+                    const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+                    await recordingService.updateRecordingSubscribers({
+                        sdkAppId: SDK_APP_ID,
+                        taskId: state.recording.taskId,
+                        subscribeUserIds: state.members.map(m => m.userId),
+                    });
+                } catch (error) {
+                    console.error('更新录制订阅失败:', error);
+                }
+            }
+        } else if (displayName && existingMember.userName !== displayName) {
+            existingMember.userName = displayName;
+            io.to(meetingId).emit('member:updated', {
+                userId,
+                userName: displayName,
+            });
         }
 
         // 发送完整房间状态给新加入的用户
@@ -215,11 +235,21 @@ export function registerHandlers(io: Server, socket: Socket): void {
     });
 
     /**
+     * 请求房间状态（用于客户端重同步）
+     */
+    socket.on('room:state:request', (data: { meetingId: string }) => {
+        const { meetingId } = data;
+        const state = roomStates.get(meetingId);
+        if (!state) return;
+        socket.emit('room:state', state);
+    });
+
+    /**
      * 离开房间
      */
     socket.on('room:leave', (data: { meetingId: string }) => {
         const { meetingId } = data;
-        handleLeaveRoom(io, socket, meetingId, userId);
+        void handleLeaveRoom(io, socket, meetingId, userId);
     });
 
     // ========== 成员状态 ==========
@@ -324,6 +354,27 @@ export function registerHandlers(io: Server, socket: Socket): void {
         console.log(`✋ ${userId} ${isRaised ? '举手' : '放下手'}`);
     });
 
+    /**
+     * 更新显示名称
+     */
+    socket.on('member:rename', (data: { meetingId: string; userName: string }) => {
+        const { meetingId, userName: newName } = data;
+        const state = roomStates.get(meetingId);
+        if (!state) return;
+
+        const member = state.members.find(m => m.userId === userId);
+        if (!member) return;
+
+        if (newName && member.userName !== newName) {
+            member.userName = newName;
+            io.to(meetingId).emit('member:updated', {
+                userId,
+                userName: newName,
+            });
+            console.log(`🏷️ ${userId} 更新名称: ${newName}`);
+        }
+    });
+
     // ========== 主持人控制 ==========
 
     /**
@@ -403,7 +454,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
     /**
      * 踢出成员
      */
-    socket.on('host:kick', (data: { meetingId: string; targetId: string; forever?: boolean }) => {
+    socket.on('host:kick', async (data: { meetingId: string; targetId: string; forever?: boolean }) => {
         const { meetingId, targetId, forever = false } = data;
         const role = getUserRole(meetingId, userId);
 
@@ -417,6 +468,20 @@ export function registerHandlers(io: Server, socket: Socket): void {
 
         // 移除成员
         state.members = state.members.filter(m => m.userId !== targetId);
+
+        // 如果正在录制，更新订阅名单
+        if (state.recording?.isRecording && state.recording.taskId) {
+            try {
+                const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+                await recordingService.updateRecordingSubscribers({
+                    sdkAppId: SDK_APP_ID,
+                    taskId: state.recording.taskId,
+                    subscribeUserIds: state.members.map(m => m.userId),
+                });
+            } catch (error) {
+                console.error('更新录制订阅失败:', error);
+            }
+        }
 
         // 广播
         io.to(meetingId).emit('member:kicked', {
@@ -630,7 +695,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
     /**
      * 允许参与者进入会议
      */
-    socket.on('waiting_room:admit', (data: { meetingId: string; targetId: string }) => {
+    socket.on('waiting_room:admit', async (data: { meetingId: string; targetId: string }) => {
         const { meetingId, targetId } = data;
         const role = getUserRole(meetingId, userId);
 
@@ -682,6 +747,20 @@ export function registerHandlers(io: Server, socket: Socket): void {
 
             // 广播新成员加入给其他人
             targetSocket.to(meetingId).emit('member:joined', newMember);
+
+            // 如果正在录制，更新订阅名单
+            if (state.recording?.isRecording && state.recording.taskId) {
+                try {
+                    const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+                    await recordingService.updateRecordingSubscribers({
+                        sdkAppId: SDK_APP_ID,
+                        taskId: state.recording.taskId,
+                        subscribeUserIds: state.members.map(m => m.userId),
+                    });
+                } catch (error) {
+                    console.error('更新录制订阅失败:', error);
+                }
+            }
         }
 
         // 更新主持人端的等候列表
@@ -733,7 +812,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
     /**
      * 允许所有等待者进入会议
      */
-    socket.on('waiting_room:admit_all', (data: { meetingId: string }) => {
+    socket.on('waiting_room:admit_all', async (data: { meetingId: string }) => {
         const { meetingId } = data;
         const role = getUserRole(meetingId, userId);
 
@@ -773,6 +852,20 @@ export function registerHandlers(io: Server, socket: Socket): void {
                 });
                 targetSocket.emit('room:state', state);
                 targetSocket.to(meetingId).emit('member:joined', newMember);
+            }
+        }
+
+        // 如果正在录制，更新订阅名单
+        if (state.recording?.isRecording && state.recording.taskId) {
+            try {
+                const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+                await recordingService.updateRecordingSubscribers({
+                    sdkAppId: SDK_APP_ID,
+                    taskId: state.recording.taskId,
+                    subscribeUserIds: state.members.map(m => m.userId),
+                });
+            } catch (error) {
+                console.error('更新录制订阅失败:', error);
             }
         }
 
@@ -879,31 +972,6 @@ export function registerHandlers(io: Server, socket: Socket): void {
         const state = roomStates.get(meetingId);
         if (!state) return;
 
-        // 调用 TRTC 停止录制 API
-        if (state.recording?.isRecording && state.recording?.taskId) {
-            console.log(`🛑 停止云录制: ${meetingId}, taskId: ${state.recording.taskId}`);
-            try {
-                const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
-                const result = await recordingService.stopCloudRecording({
-                    sdkAppId: SDK_APP_ID,
-                    roomId: Number(meetingId),
-                });
-
-                if (result.success && result.taskId) {
-                    // 更新数据库中的录制记录
-                    await recordingService.updateRecordingInDB({
-                        taskId: result.taskId,
-                        status: 'completed',
-                    });
-                    console.log(`✅ 云录制已停止: ${result.taskId}`);
-                } else {
-                    console.log(`⚠️ 停止云录制失败: ${result.error}`);
-                }
-            } catch (error) {
-                console.error('❌ 停止云录制出错:', error);
-            }
-        }
-
         state.recording = { isRecording: false };
 
         io.to(meetingId).emit('recording:stopped', { by: userId });
@@ -919,7 +987,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
 
         const meetingId = socket.data.meetingId as string;
         if (meetingId) {
-            handleLeaveRoom(io, socket, meetingId, userId);
+            void handleLeaveRoom(io, socket, meetingId, userId);
         }
     });
 }
@@ -927,7 +995,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
 /**
  * 处理离开房间
  */
-function handleLeaveRoom(io: Server, socket: Socket, meetingId: string, userId: string): void {
+async function handleLeaveRoom(io: Server, socket: Socket, meetingId: string, userId: string): Promise<void> {
     const state = roomStates.get(meetingId);
     if (!state) return;
 
@@ -936,6 +1004,20 @@ function handleLeaveRoom(io: Server, socket: Socket, meetingId: string, userId: 
 
     // 移除成员
     state.members = state.members.filter(m => m.userId !== userId);
+
+    // 如果正在录制，更新订阅名单
+    if (state.recording?.isRecording && state.recording.taskId) {
+        try {
+            const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+            await recordingService.updateRecordingSubscribers({
+                sdkAppId: SDK_APP_ID,
+                taskId: state.recording.taskId,
+                subscribeUserIds: state.members.map(m => m.userId),
+            });
+        } catch (error) {
+            console.error('更新录制订阅失败:', error);
+        }
+    }
 
     // 更新数据库
     const db = getDatabase();

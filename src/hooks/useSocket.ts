@@ -40,6 +40,7 @@ export interface UseSocketReturn {
     disconnect: () => void;
     joinRoom: () => void;
     leaveRoom: () => void;
+    requestRoomState: () => void;
 
     // 状态广播
     broadcastAudioState: (isOn: boolean) => void;
@@ -84,6 +85,7 @@ export function useSocket({
     const [roomState, setRoomState] = useState<RoomState | null>(null);
     const [inWaitingRoom, setInWaitingRoom] = useState(false);
     const [waitingList, setWaitingList] = useState<Array<{ userId: string; userName: string; joinedAt: number }>>([]);
+    const lastNameRef = useRef<string | undefined>(undefined);
 
     // 用 ref 避免回调中的闭包问题
     const callbacksRef = useRef({ onKicked, onMeetingEnded, onMutedByHost, onVideoStoppedByHost, onStoppedAllVideo });
@@ -104,7 +106,10 @@ export function useSocket({
 
             onMemberJoined: (member) => {
                 setRoomState(prev => {
-                    if (!prev) return prev;
+                    if (!prev) {
+                        socketService.requestRoomState();
+                        return prev;
+                    }
                     // 避免重复添加
                     if (prev.members.some(m => m.userId === member.userId)) {
                         return prev;
@@ -128,7 +133,10 @@ export function useSocket({
 
             onMemberUpdated: (data) => {
                 setRoomState(prev => {
-                    if (!prev) return prev;
+                    if (!prev) {
+                        socketService.requestRoomState();
+                        return prev;
+                    }
                     return {
                         ...prev,
                         members: prev.members.map(m =>
@@ -289,7 +297,20 @@ export function useSocket({
     useEffect(() => {
         if (isConnected && meetingId) {
             socketService.joinRoom(meetingId, userName);
+            const timer = window.setTimeout(() => {
+                socketService.requestRoomState();
+            }, 500);
+            return () => {
+                window.clearTimeout(timer);
+            };
         }
+    }, [isConnected, meetingId, userName]);
+
+    useEffect(() => {
+        if (!isConnected || !meetingId || !userName) return;
+        if (lastNameRef.current === userName) return;
+        lastNameRef.current = userName;
+        socketService.updateUserName(userName);
     }, [isConnected, meetingId, userName]);
 
     // 计算派生状态
@@ -318,6 +339,10 @@ export function useSocket({
 
     const leaveRoom = useCallback(() => {
         socketService.leaveRoom();
+    }, []);
+
+    const requestRoomState = useCallback(() => {
+        socketService.requestRoomState();
     }, []);
 
     // 状态广播
@@ -420,6 +445,7 @@ export function useSocket({
         disconnect,
         joinRoom,
         leaveRoom,
+        requestRoomState,
         broadcastAudioState,
         broadcastVideoState,
         broadcastScreenShareState,

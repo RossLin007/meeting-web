@@ -285,6 +285,8 @@ const zhCN = {
         stop: '停止录制',
         startRecording: '开始录制',
         stopRecording: '停止录制',
+        starting: '启动中...',
+        stopping: '停止中...',
         recording: '录制中',
         recordingInProgress: '录制中',  // 其他人正在录制时显示
         noPermission: '无权限录制',

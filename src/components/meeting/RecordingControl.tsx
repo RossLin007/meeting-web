@@ -9,6 +9,8 @@ interface RecordingControlProps {
     isRoomRecording: boolean;  // 房间是否有人在录制
     recordingTime: number;     // 秒
     isHost: boolean;           // 是否是主持人
+    isStarting?: boolean;
+    isStopping?: boolean;
     onStartRecording: () => void;
     onStopRecording: () => void;
 }
@@ -43,10 +45,13 @@ export function RecordingControl({
     isRoomRecording,
     recordingTime,
     isHost,
+    isStarting = false,
+    isStopping = false,
     onStartRecording,
     onStopRecording,
 }: RecordingControlProps) {
     const { t } = useTranslation();
+    const isPending = isStarting || isStopping;
 
     // 非主持人只能看到录制状态，不能操作
     if (!isHost) {
@@ -65,14 +70,14 @@ export function RecordingControl({
 
     // 主持人可以控制录制
     return (
-        <div className={clsx(styles.container, isRecording && styles.recording)}>
+        <div className={clsx(styles.container, isRecording && styles.recording, isPending && styles.pending)}>
             {isRecording ? (
                 <>
                     <span className={styles.indicator} />
                     <span className={styles.time}>{formatTime(recordingTime)}</span>
-                    <button className={styles.stopBtn} onClick={onStopRecording}>
+                    <button className={styles.stopBtn} onClick={onStopRecording} disabled={isStopping}>
                         <StopIcon />
-                        <span>{t('recording.stopRecording')}</span>
+                        <span>{isStopping ? t('recording.stopping', '停止中...') : t('recording.stopRecording')}</span>
                     </button>
                 </>
             ) : isRoomRecording ? (
@@ -83,9 +88,9 @@ export function RecordingControl({
                     <span className={styles.statusText}>{t('recording.recordingInProgress')}</span>
                 </div>
             ) : (
-                <button className={styles.startBtn} onClick={onStartRecording}>
+                <button className={styles.startBtn} onClick={onStartRecording} disabled={isStarting}>
                     <RecordIcon />
-                    <span>{t('recording.startRecording')}</span>
+                    <span>{isStarting ? t('recording.starting', '启动中...') : t('recording.startRecording')}</span>
                 </button>
             )}
         </div>
