@@ -617,7 +617,16 @@ export function Home() {
                                     {(() => {
                                         const today = new Date();
                                         const todayStr = today.toDateString();
-                                        const allMeetings = [...ongoingMeetings, ...scheduledMeetings];
+
+                                        // Filter out expired scheduled meetings (with 15-minute grace period)
+                                        const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
+                                        const upcomingMeetings = scheduledMeetings.filter((meeting) => {
+                                            if (!meeting.startTime) return true; // Keep meetings without explicit time
+                                            const meetingTime = new Date(meeting.startTime);
+                                            return meetingTime.getTime() > today.getTime() - GRACE_PERIOD_MS;
+                                        });
+
+                                        const allMeetings = [...ongoingMeetings, ...upcomingMeetings];
                                         const todayCount = allMeetings.filter(m => m.startTime && m.startTime.toDateString() === todayStr).length;
                                         return todayCount > 0
                                             ? t('home.meetingsToday', { count: todayCount })
@@ -639,9 +648,17 @@ export function Home() {
                             <div className={styles.sectionHeader}>
                                 <h2 className={styles.sectionTitle}>
                                     {t('home.upcomingMeetings')}
-                                    {[...ongoingMeetings, ...scheduledMeetings].length > 0 && (
-                                        <span className={styles.badge}>{[...ongoingMeetings, ...scheduledMeetings].length}</span>
-                                    )}
+                                    {(() => {
+                                        // Filter out expired scheduled meetings for badge count
+                                        const now = new Date();
+                                        const GRACE_PERIOD_MS = 15 * 60 * 1000;
+                                        const upcomingMeetings = scheduledMeetings.filter((meeting) => {
+                                            if (!meeting.startTime) return true;
+                                            return new Date(meeting.startTime).getTime() > now.getTime() - GRACE_PERIOD_MS;
+                                        });
+                                        const totalUpcoming = ongoingMeetings.length + upcomingMeetings.length;
+                                        return totalUpcoming > 0 && <span className={styles.badge}>{totalUpcoming}</span>;
+                                    })()}
                                 </h2>
                                 <div className={styles.sectionControls}>
                                     {/* 搜索框 */}
@@ -693,7 +710,17 @@ export function Home() {
 
                             {/* 显示进行中和即将开始的会议 */}
                             {(() => {
-                                const allMeetings = [...ongoingMeetings, ...scheduledMeetings];
+                                // Filter out expired scheduled meetings (with 15-minute grace period)
+                                const now = new Date();
+                                const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
+
+                                const upcomingMeetings = scheduledMeetings.filter((meeting) => {
+                                    if (!meeting.startTime) return true; // Keep meetings without explicit time
+                                    const meetingTime = new Date(meeting.startTime);
+                                    return meetingTime.getTime() > now.getTime() - GRACE_PERIOD_MS;
+                                });
+
+                                const allMeetings = [...ongoingMeetings, ...upcomingMeetings];
                                 const filteredMeetings = meetingSearch.trim()
                                     ? allMeetings.filter(m =>
                                         m.title.toLowerCase().includes(meetingSearch.toLowerCase()) ||
