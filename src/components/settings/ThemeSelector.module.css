@@ -1,0 +1,107 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.description {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: var(--color-bg);
+}
+
+.option:hover {
+  border-color: var(--color-primary);
+}
+
+.option.selected {
+  border-color: var(--color-primary);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.optionRadio {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.option.selected .optionRadio {
+  border-color: var(--color-primary);
+}
+
+.option.selected .optionRadio::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background: var(--color-primary);
+  border-radius: 50%;
+}
+
+.optionContent {
+  flex: 1;
+}
+
+.optionTitle {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-1) 0;
+}
+
+.optionDesc {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.optionPreview {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.previewLight {
+  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+}
+
+.previewDark {
+  background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+}
+
+.previewSystem {
+  background: linear-gradient(90deg, #ffffff 50%, #111827 50%);
+}
