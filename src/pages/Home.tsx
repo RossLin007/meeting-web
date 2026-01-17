@@ -1,6 +1,6 @@
 // 智会 - 首页（仪表板风格）
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Modal, Input } from '@/components/common';
@@ -22,6 +22,7 @@ import { UserSettingsModal } from '@/components/user/UserSettingsModal';
 import styles from './Home.module.css';
 
 const DEFAULT_TIMEOUT = 30000;
+const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
 
 // 后端 API 基础 URL
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -97,6 +98,16 @@ export function Home() {
             setMeetingsLoading(false);
         }
     }, [user?.id]);
+
+    // Memoized filtered upcoming meetings (with 15-minute grace period)
+    const filteredUpcomingMeetings = useMemo(() => {
+        const now = new Date();
+        return scheduledMeetings.filter((meeting) => {
+            if (!meeting.startTime) return true; // Keep meetings without explicit time
+            const meetingTime = new Date(meeting.startTime);
+            return meetingTime.getTime() > now.getTime() - GRACE_PERIOD_MS;
+        });
+    }, [scheduledMeetings]);
 
     // 初始加载会议列表
     useEffect(() => {
@@ -618,15 +629,7 @@ export function Home() {
                                         const today = new Date();
                                         const todayStr = today.toDateString();
 
-                                        // Filter out expired scheduled meetings (with 15-minute grace period)
-                                        const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
-                                        const upcomingMeetings = scheduledMeetings.filter((meeting) => {
-                                            if (!meeting.startTime) return true; // Keep meetings without explicit time
-                                            const meetingTime = new Date(meeting.startTime);
-                                            return meetingTime.getTime() > today.getTime() - GRACE_PERIOD_MS;
-                                        });
-
-                                        const allMeetings = [...ongoingMeetings, ...upcomingMeetings];
+                                        const allMeetings = [...ongoingMeetings, ...filteredUpcomingMeetings];
                                         const todayCount = allMeetings.filter(m => m.startTime && m.startTime.toDateString() === todayStr).length;
                                         return todayCount > 0
                                             ? t('home.meetingsToday', { count: todayCount })
@@ -649,14 +652,7 @@ export function Home() {
                                 <h2 className={styles.sectionTitle}>
                                     {t('home.upcomingMeetings')}
                                     {(() => {
-                                        // Filter out expired scheduled meetings for badge count
-                                        const now = new Date();
-                                        const GRACE_PERIOD_MS = 15 * 60 * 1000;
-                                        const upcomingMeetings = scheduledMeetings.filter((meeting) => {
-                                            if (!meeting.startTime) return true;
-                                            return new Date(meeting.startTime).getTime() > now.getTime() - GRACE_PERIOD_MS;
-                                        });
-                                        const totalUpcoming = ongoingMeetings.length + upcomingMeetings.length;
+                                        const totalUpcoming = ongoingMeetings.length + filteredUpcomingMeetings.length;
                                         return totalUpcoming > 0 && <span className={styles.badge}>{totalUpcoming}</span>;
                                     })()}
                                 </h2>
@@ -710,17 +706,7 @@ export function Home() {
 
                             {/* 显示进行中和即将开始的会议 */}
                             {(() => {
-                                // Filter out expired scheduled meetings (with 15-minute grace period)
-                                const now = new Date();
-                                const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
-
-                                const upcomingMeetings = scheduledMeetings.filter((meeting) => {
-                                    if (!meeting.startTime) return true; // Keep meetings without explicit time
-                                    const meetingTime = new Date(meeting.startTime);
-                                    return meetingTime.getTime() > now.getTime() - GRACE_PERIOD_MS;
-                                });
-
-                                const allMeetings = [...ongoingMeetings, ...upcomingMeetings];
+                                const allMeetings = [...ongoingMeetings, ...filteredUpcomingMeetings];
                                 const filteredMeetings = meetingSearch.trim()
                                     ? allMeetings.filter(m =>
                                         m.title.toLowerCase().includes(meetingSearch.toLowerCase()) ||
