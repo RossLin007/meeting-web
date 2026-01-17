@@ -18,6 +18,7 @@ import {
     ClockIcon, LogoutIcon, GridIcon, ListIcon, FilmIcon
 } from '@/components/icons';
 import type { ScheduleMeetingFormData, MeetingListItem, MeetingStatus, Contact, ContactGroup } from '@/types';
+import { UserSettingsModal } from '@/components/user/UserSettingsModal';
 import styles from './Home.module.css';
 
 const DEFAULT_TIMEOUT = 30000;
@@ -46,6 +47,7 @@ export function Home() {
     const [showScheduleModal, setShowScheduleModal] = useState(false);
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [showUserSettings, setShowUserSettings] = useState(false);
 
     // 表单状态
     const [meetingTitle, setMeetingTitle] = useState('');
@@ -531,19 +533,24 @@ export function Home() {
                         <UsersIcon />
                         <span>{t('home.contacts')}</span>
                     </button>
-                    <button
+                    {/* REMOVED - Settings now in user avatar click */}
+                    {/* <button
                         className={`${styles.navItem} ${activeNav === 'settings' ? styles.active : ''}`}
                         onClick={() => navigate('/settings')}
                     >
                         <SettingsIcon />
                         <span>{t('home.settings')}</span>
-                    </button>
+                    </button> */}
                 </nav>
 
                 {/* 用户信息 */}
                 <div className={styles.userSection}>
                     {isLoggedIn && user && (
-                        <div className={styles.userCard}>
+                        <div
+                            className={styles.userCard}
+                            onClick={() => setShowUserSettings(true)}
+                            style={{ cursor: 'pointer' }}
+                        >
                             <div className={styles.userAvatar}>
                                 {user.username?.charAt(0).toUpperCase() || 'U'}
                             </div>
@@ -551,8 +558,15 @@ export function Home() {
                                 <span className={styles.userName}>{user.username}</span>
                                 <span className={styles.userStatus}>{t('home.online')}</span>
                             </div>
-                            <button className={styles.logoutBtn} onClick={() => setShowLogoutModal(true)} title={t('home.logout')}>
-                                <LogoutIcon />
+                            <button
+                                className={styles.logoutBtn}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowUserSettings(true);
+                                }}
+                                title={t('home.settings')}
+                            >
+                                <SettingsIcon />
                             </button>
                         </div>
                     )}
@@ -1291,6 +1305,12 @@ export function Home() {
                     )}
                 </div>
             </Modal>
+
+            {/* User Settings Modal */}
+            <UserSettingsModal
+                isOpen={showUserSettings}
+                onClose={() => setShowUserSettings(false)}
+            />
         </div >
     );
 }
