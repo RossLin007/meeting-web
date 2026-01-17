@@ -89,6 +89,62 @@
   }
 }
 
+/* ==================== 主题变量 ==================== */
+
+/* Light theme (explicit via data-theme attribute) */
+[data-theme='light'] {
+  --color-bg: #ffffff;
+  --color-bg-secondary: #f9fafb;
+  --color-bg-tertiary: #f3f4f6;
+  --color-text: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-tertiary: #9ca3af;
+  --color-border: #e5e7eb;
+  --color-border-light: #f3f4f6;
+}
+
+/* Dark theme (explicit via data-theme attribute) */
+[data-theme='dark'] {
+  --color-bg: #111827;
+  --color-bg-secondary: #1f2937;
+  --color-bg-tertiary: #374151;
+  --color-text: #f9fafb;
+  --color-text-secondary: #d1d5db;
+  --color-text-tertiary: #9ca3af;
+  --color-border: #374151;
+  --color-border-light: #4b5563;
+}
+
+/* Theme-specific gradients */
+[data-theme='light'] {
+  --gradient-bg: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%);
+  --gradient-sidebar: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --gradient-card: rgba(255, 255, 255, 0.8);
+  --gradient-card-hover: rgba(255, 255, 255, 0.95);
+}
+
+[data-theme='dark'] {
+  --gradient-bg: linear-gradient(180deg, #0a1929 0%, #0d2137 100%);
+  --gradient-sidebar: rgba(0, 0, 0, 0.3);
+  --gradient-card: rgba(255, 255, 255, 0.05);
+  --gradient-card-hover: rgba(255, 255, 255, 0.08);
+}
+
+/* Theme-specific text colors */
+[data-theme='light'] {
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --text-inverted: #ffffff;
+}
+
+[data-theme='dark'] {
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-tertiary: #9ca3af;
+  --text-inverted: #111827;
+}
+
 /* ==================== 基础重置 ==================== */
 *,
 *::before,
