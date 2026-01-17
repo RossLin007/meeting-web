@@ -3,6 +3,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ToastProvider } from '@/components/common';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { PrivateRoute } from '@/components/PrivateRoute';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Home } from '@/pages/Home';
@@ -19,9 +20,10 @@ import '@/styles/index.css';
 function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-        <AuthProvider>
-          <ToastProvider>
+      <ThemeProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <ToastProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/auth/callback" element={<Home />} />
@@ -79,8 +81,9 @@ function App() {
           </ToastProvider>
         </AuthProvider>
       </BrowserRouter>
-    </ErrorBoundary>
-  );
+    </ThemeProvider>
+  </ErrorBoundary>
+);
 }
 
 export default App;
