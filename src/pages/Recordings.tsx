@@ -81,6 +81,7 @@ export function Recordings() {
     const [isHost, setIsHost] = useState(false);
     const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [videoError, setVideoError] = useState<string | null>(null);
 
     // 加载录制列表
     const loadRecordings = useCallback(async () => {
@@ -143,6 +144,7 @@ export function Recordings() {
     // 播放录制
     const handlePlay = (recording: Recording) => {
         if (recording.fileUrl) {
+            setVideoError(null);
             setSelectedRecording(recording);
         }
     };
@@ -265,22 +267,42 @@ export function Recordings() {
             {selectedRecording && selectedRecording.fileUrl && (
                 <div
                     className={styles.playerOverlay}
-                    onClick={() => setSelectedRecording(null)}
+                    onClick={() => {
+                        setVideoError(null);
+                        setSelectedRecording(null);
+                    }}
                 >
                     <div
                         className={styles.player}
                         onClick={e => e.stopPropagation()}
                     >
                         <h3>{selectedRecording.title || t('recordings.title')}</h3>
-                        <video
-                            src={selectedRecording.fileUrl}
-                            controls
-                            autoPlay
-                            className={styles.video}
-                        />
+                        {videoError ? (
+                            <div className={styles.videoError}>
+                                <p>{videoError}</p>
+                                <button
+                                    className={styles.errorBtn}
+                                    onClick={() => window.open(selectedRecording.fileUrl, '_blank')}
+                                >
+                                    {t('recordings.openInNewTab')}
+                                </button>
+                            </div>
+                        ) : (
+                            <video
+                                data-testid="video-player"
+                                src={selectedRecording.fileUrl}
+                                controls
+                                autoPlay
+                                className={styles.video}
+                                onError={() => setVideoError(t('recordings.videoError'))}
+                            />
+                        )}
                         <button
                             className={styles.closePlayer}
-                            onClick={() => setSelectedRecording(null)}
+                            onClick={() => {
+                                setVideoError(null);
+                                setSelectedRecording(null);
+                            }}
                         >
                             {t('common.close')}
                         </button>

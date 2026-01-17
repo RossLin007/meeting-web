@@ -15,6 +15,8 @@ const enUS = {
         warning: 'Warning',
         copy: 'Copy',
         copied: 'Copied',
+        retry: 'Retry',
+        refresh: 'Refresh',
     },
 
     home: {
@@ -412,6 +414,8 @@ const enUS = {
         deleteConfirm: 'Are you sure you want to delete this recording? This action cannot be undone.',
         fileSize: 'File Size',
         hasRecordings: '{{count}} recording(s)',
+        videoError: 'Video playback failed. The video format may not be supported.',
+        openInNewTab: 'Open in New Tab',
     },
 };
 

@@ -412,6 +412,8 @@ const zhCN = {
         deleteConfirm: '确定要删除此录制吗？此操作不可恢复。',
         fileSize: '文件大小',
         hasRecordings: '有 {{count}} 个录制',
+        videoError: '视频播放失败。视频格式可能不受支持。',
+        openInNewTab: '在新标签页打开',
     },
 };
 
