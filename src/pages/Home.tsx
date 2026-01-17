@@ -558,16 +558,28 @@ export function Home() {
                                 <span className={styles.userName}>{user.username}</span>
                                 <span className={styles.userStatus}>{t('home.online')}</span>
                             </div>
-                            <button
-                                className={styles.logoutBtn}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowUserSettings(true);
-                                }}
-                                title={t('home.settings')}
-                            >
-                                <SettingsIcon />
-                            </button>
+                            <div className={styles.userActions}>
+                                <button
+                                    className={styles.settingsBtn}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowUserSettings(true);
+                                    }}
+                                    title={t('home.settings')}
+                                >
+                                    <SettingsIcon />
+                                </button>
+                                <button
+                                    className={styles.logoutBtn}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowLogoutModal(true);
+                                    }}
+                                    title={t('home.logout')}
+                                >
+                                    <LogoutIcon />
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
