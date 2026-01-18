@@ -278,7 +278,12 @@ export function Recordings() {
                     >
                         <h3>{selectedRecording.title || t('recordings.title')}</h3>
                         {videoError ? (
-                            <div className={styles.videoError}>
+                            <div
+                                className={styles.videoError}
+                                role="alert"
+                                aria-live="assertive"
+                                id="video-error-desc"
+                            >
                                 <p>{videoError}</p>
                                 <button
                                     className={styles.errorBtn}
@@ -294,7 +299,12 @@ export function Recordings() {
                                 controls
                                 autoPlay
                                 className={styles.video}
-                                onError={() => setVideoError(t('recordings.videoError'))}
+                                aria-label={t('recordings.title')}
+                                aria-describedby={videoError ? 'video-error-desc' : undefined}
+                                onError={(e) => {
+                                    console.error('Video playback error:', e);
+                                    setVideoError(t('recordings.videoError'));
+                                }}
                             />
                         )}
                         <button
