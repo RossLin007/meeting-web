@@ -325,6 +325,7 @@ SecretKey: qX1KSTJxPfhXDhz3xlNlw0vhIk485xgE
 https://trtc.io/zh/document/46960?product=rtcengine&menulabel=core%20sdk&platform=web
 - [腾讯云 COS](https://cloud.tencent.com/product/cos)
 
+@tencent-cloud-product-647.md
 
 ## Cos存储位置
 /{SdkAppId}_{RoomId}/individual/{UserId}/{TaskId}/{FileName}

@@ -47,6 +47,7 @@ export interface UseSocketReturn {
     broadcastVideoState: (isOn: boolean) => void;
     broadcastScreenShareState: (isSharing: boolean) => void;
     broadcastHandRaised: (isRaised: boolean) => void;
+    reportMemberState: (state: { isAudioOn?: boolean; isVideoOn?: boolean; isScreenSharing?: boolean; isHandRaised?: boolean }) => void;
 
     // 主持人操作
     muteMember: (targetId: string) => void;
@@ -81,6 +82,7 @@ export function useSocket({
     onVideoStoppedByHost,
     onStoppedAllVideo,
 }: UseSocketOptions): UseSocketReturn {
+    const roomStateSyncIntervalMs = 30000;
     const [isConnected, setIsConnected] = useState(false);
     const [roomState, setRoomState] = useState<RoomState | null>(null);
     const [inWaitingRoom, setInWaitingRoom] = useState(false);
@@ -307,6 +309,17 @@ export function useSocket({
     }, [isConnected, meetingId, userName]);
 
     useEffect(() => {
+        if (!isConnected || !meetingId) return;
+        const intervalId = window.setInterval(() => {
+            socketService.requestRoomState();
+        }, roomStateSyncIntervalMs);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [isConnected, meetingId]);
+
+    useEffect(() => {
         if (!isConnected || !meetingId || !userName) return;
         if (lastNameRef.current === userName) return;
         lastNameRef.current = userName;
@@ -360,6 +373,10 @@ export function useSocket({
 
     const broadcastHandRaised = useCallback((isRaised: boolean) => {
         socketService.broadcastHandRaised(isRaised);
+    }, []);
+
+    const reportMemberState = useCallback((state: { isAudioOn?: boolean; isVideoOn?: boolean; isScreenSharing?: boolean; isHandRaised?: boolean }) => {
+        socketService.reportMemberState(state);
     }, []);
 
     // 主持人操作
@@ -450,6 +467,7 @@ export function useSocket({
         broadcastVideoState,
         broadcastScreenShareState,
         broadcastHandRaised,
+        reportMemberState,
         muteMember,
         stopVideoMember,
         kickMember,

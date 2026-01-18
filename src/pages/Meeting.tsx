@@ -230,6 +230,7 @@ export function Meeting() {
         broadcastVideoState: socketBroadcastVideoState,
         broadcastScreenShareState: socketBroadcastScreenShareState,
         broadcastHandRaised: socketBroadcastHandRaised,
+        reportMemberState,
         endMeeting: socketEndMeeting,
         leaveRoom: socketLeaveRoom,
         muteAll: socketMuteAll,
@@ -561,6 +562,26 @@ export function Meeting() {
 
     // 加载状态：等待用户身份验证
     const isLoading = !currentUser.userSig || currentUser.userId.startsWith('guest_');
+
+    // 成员状态心跳（轻量级同步）
+    useEffect(() => {
+        if (!roomId) return;
+        const sendState = () => {
+            reportMemberState({
+                isAudioOn: isMicOn,
+                isVideoOn: isCameraOn,
+                isScreenSharing,
+                isHandRaised,
+            });
+        };
+
+        sendState();
+        const intervalId = window.setInterval(sendState, 30000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [roomId, isMicOn, isCameraOn, isScreenSharing, isHandRaised, reportMemberState]);
 
     // 如果正在加载，显示加载结界面
     if (isLoading) {

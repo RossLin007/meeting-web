@@ -203,7 +203,7 @@ export function Home() {
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
                 video.play().catch(e => console.log('播放失败:', e));
             });
-            hls.on(Hls.Events.ERROR, (event, data) => {
+            hls.on(Hls.Events.ERROR, (_event, data) => {
                 console.error('HLS 错误:', data);
             });
 

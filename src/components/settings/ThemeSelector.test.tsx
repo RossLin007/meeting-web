@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 
 describe('ThemeSelector', () => {
-  const wrapper = ({ children }) => <ThemeProvider>{children}</ThemeProvider>;
+  const wrapper = ({ children }: { children: React.ReactNode }) => <ThemeProvider>{children}</ThemeProvider>;
 
   afterEach(() => {
     cleanup();

@@ -8,6 +8,7 @@
 5. 设置页面和 左下角的用户区域 合并 点击用户头像，可以打开设置和用户profile
 
 
+
 ## 会议室页面
 1. 点击录制以后，需要有状态的展示（因为和服务器交互链路上，容易长时间没有反应）
 2. 进入会议室，点击 打开音频，打开视频 反应很慢
@@ -30,3 +31,40 @@
   当开启 1号浏览器A的画面, 1号浏览器上 A看见 B看不见; 2号浏览器 A看见 B看见.
 17. 主持人离开会议室，就没有人有主持人权限了。
 18。服务器端需要记住每个终端的状态，主动使终端的状态保持同步。 需要有程序主动同步所有 终端的状态， 如果终端的状态不一致。A用户在自己的浏览器上是显示的， 但是在C用户的浏览器上是不显示的，程序会主动发现，并通过trtcsdk，让A用户在C终端上显示出来。 会主动巡检，比如1分钟一次，同步？
+19. 当某个浏览器上的用户开关音视频，他浏览器上的其他用户的视频会有关闭再打开的现象。
+
+
+## 语音转文字方案
+使用阿里云的asr, paraformer-v2 
+参考文档: https://help.aliyun.com/zh/model-studio/paraformer-recorded-speech-recognition-restful-api?spm=a2c4g.11186623.0.i4
+音频来源: 使用会议录制文件（mp4, 事后转录.
+需要说话人分离
+不需要事实字幕.
+转录后处理,  需要按说话人分段
+录音文件存储在 腾讯云的cos上.
+说话人数量不固定,
+转录后处理, 在前端能看到转录的结果.整体转录结果,及每个人的转录结果(时间,说话人, 内容)
+数据库存  PostgreSQL
+COS 访问方式 - 公共读取
+说话人标签, 数据库中取
+
+
+## 事实语音转文字
+
+
+
+## 法律合规
+实时音视频 TRTC SDK 合规使用指南
+https://cloud.tencent.com/document/product/647/97575
+实时音视频 TRTC SDK 个人信息保护规则
+https://cloud.tencent.com/document/product/647/57574
+
+
+
+[mcp_servers.tencentcloud-sdk-mcp]
+command = "npx"
+args = ["-y", "@tencentcloud/sdk-mcp"]
+
+[mcp_servers.tencentcloud-sdk-mcp.env]
+SDKAPPID = "IKIDdn8MK9mESSGqEPN8fz62oQp370jKm5FG"      # 必填：从腾讯云控制台获取
+SECRETKEY = "udBcvAIH6lSI2ZtGVu9D6lpr2JUUeifS"    # 必填：用于鉴权的密钥

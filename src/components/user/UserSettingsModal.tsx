@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
 import { useSettingsStorage } from '@/hooks/useSettingsStorage';
 import { ThemeSelector } from '@/components/settings/ThemeSelector';
 import styles from './UserSettingsModal.module.css';
@@ -36,7 +35,6 @@ function CloseIcon() {
 
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const { user, logout } = useAuth();
-  const { resolvedTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('profile');
   const [recordingFormat, setRecordingFormat] = useSettingsStorage<'mp4' | 'webm'>('recording_format', 'mp4');
 

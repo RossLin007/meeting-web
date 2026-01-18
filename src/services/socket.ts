@@ -333,6 +333,17 @@ class SocketService {
     }
 
     /**
+     * 成员状态同步（心跳）
+     */
+    reportMemberState(state: { isAudioOn?: boolean; isVideoOn?: boolean; isScreenSharing?: boolean; isHandRaised?: boolean }): void {
+        if (!this.socket || !this.currentMeetingId) return;
+        this.socket.emit('member:state', {
+            meetingId: this.currentMeetingId,
+            state,
+        });
+    }
+
+    /**
      * 更新显示名称
      */
     updateUserName(userName: string): void {

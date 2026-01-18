@@ -1,5 +1,4 @@
 import { useTheme } from '@/contexts/ThemeContext';
-import { useTranslation } from 'react-i18next';
 import styles from './ThemeSelector.module.css';
 import type { ThemeMode } from '@/contexts/ThemeContext';
 
@@ -30,7 +29,6 @@ const THEME_OPTIONS: Array<{
 ];
 
 export function ThemeSelector() {
-  const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
 
   return (

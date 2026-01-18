@@ -287,7 +287,7 @@ export function Recordings() {
                                 <p>{videoError}</p>
                                 <button
                                     className={styles.errorBtn}
-                                    onClick={() => window.open(selectedRecording.fileUrl, '_blank')}
+                                    onClick={() => selectedRecording.fileUrl && window.open(selectedRecording.fileUrl, '_blank')}
                                 >
                                     {t('recordings.openInNewTab')}
                                 </button>

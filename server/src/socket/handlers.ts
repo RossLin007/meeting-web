@@ -44,6 +44,18 @@ const roomStates = new Map<string, RoomState>();
 const userSockets = new Map<string, Socket>();
 // 待执行的主持人转移（用于延迟处理，允许刷新重连）
 const pendingHostTransfers = new Map<string, NodeJS.Timeout>();
+const roomStateBroadcastIntervalMs = 30000;
+let roomStateBroadcastTimer: NodeJS.Timeout | null = null;
+
+function ensureRoomStateBroadcast(io: Server): void {
+    if (roomStateBroadcastTimer) return;
+    roomStateBroadcastTimer = setInterval(() => {
+        roomStates.forEach((state, meetingId) => {
+            if (state.members.length === 0 && state.waitingList.length === 0) return;
+            io.to(meetingId).emit('room:state', state);
+        });
+    }, roomStateBroadcastIntervalMs);
+}
 
 /**
  * 获取或创建房间状态
@@ -128,6 +140,7 @@ function updateMemberInDB(meetingId: string, userId: string, updates: Record<str
  * 注册所有Socket事件处理器
  */
 export function registerHandlers(io: Server, socket: Socket): void {
+    ensureRoomStateBroadcast(io);
     const userId = socket.data.userId as string;
     const userName = socket.data.userName as string || userId;
 
@@ -352,6 +365,65 @@ export function registerHandlers(io: Server, socket: Socket): void {
         });
 
         console.log(`✋ ${userId} ${isRaised ? '举手' : '放下手'}`);
+    });
+
+    /**
+     * 成员状态同步（心跳）
+     */
+    socket.on('member:state', (data: { meetingId: string; state: { isAudioOn?: boolean; isVideoOn?: boolean; isScreenSharing?: boolean; isHandRaised?: boolean } }) => {
+        const { meetingId, state: reported } = data;
+        const state = roomStates.get(meetingId);
+        if (!state) return;
+        const socketMeetingId = socket.data.meetingId as string | undefined;
+        if (socketMeetingId && socketMeetingId !== meetingId) return;
+
+        const member = state.members.find(m => m.userId === userId);
+        if (!member) return;
+
+        const updates: Record<string, unknown> = {};
+        const changed: Record<string, unknown> = { userId };
+        let hasChanges = false;
+        const role = getUserRole(meetingId, userId);
+        const canSelfUnmute = !state.isAllMuted || state.allowSelfUnmute || isAdminRole(role);
+
+        if (typeof reported.isAudioOn === 'boolean') {
+            if (!reported.isAudioOn || canSelfUnmute) {
+                if (member.isAudioOn !== reported.isAudioOn) {
+                    member.isAudioOn = reported.isAudioOn;
+                    updates.is_muted = reported.isAudioOn ? 0 : 1;
+                    changed.isAudioOn = reported.isAudioOn;
+                    hasChanges = true;
+                }
+            }
+        }
+
+        if (typeof reported.isVideoOn === 'boolean' && member.isVideoOn !== reported.isVideoOn) {
+            member.isVideoOn = reported.isVideoOn;
+            updates.is_camera_off = reported.isVideoOn ? 0 : 1;
+            changed.isVideoOn = reported.isVideoOn;
+            hasChanges = true;
+        }
+
+        if (typeof reported.isScreenSharing === 'boolean' && member.isScreenSharing !== reported.isScreenSharing) {
+            member.isScreenSharing = reported.isScreenSharing;
+            changed.isScreenSharing = reported.isScreenSharing;
+            hasChanges = true;
+        }
+
+        if (typeof reported.isHandRaised === 'boolean' && member.isHandRaised !== reported.isHandRaised) {
+            member.isHandRaised = reported.isHandRaised;
+            changed.isHandRaised = reported.isHandRaised;
+            hasChanges = true;
+        }
+
+        if (!hasChanges) return;
+
+        if (Object.keys(updates).length > 0) {
+            updateMemberInDB(meetingId, userId, updates);
+        }
+
+        io.to(meetingId).emit('member:updated', changed);
+        console.log(`🔁 ${userId} 状态同步`);
     });
 
     /**

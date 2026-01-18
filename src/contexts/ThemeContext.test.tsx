@@ -42,7 +42,7 @@ describe('ThemeContext', () => {
   });
 
   it('should default to system theme', () => {
-    const wrapper = ({ children }) => <ThemeProvider>{children}</ThemeProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <ThemeProvider>{children}</ThemeProvider>;
     const { result } = renderHook(() => useTheme(), { wrapper });
 
     expect(result.current.theme).toBe('system');
@@ -50,14 +50,14 @@ describe('ThemeContext', () => {
 
   it('should load theme from localStorage', () => {
     localStorage.setItem('zhihui_theme', 'light');
-    const wrapper = ({ children }) => <ThemeProvider>{children}</ThemeProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <ThemeProvider>{children}</ThemeProvider>;
     const { result } = renderHook(() => useTheme(), { wrapper });
 
     expect(result.current.theme).toBe('light');
   });
 
   it('should save theme to localStorage when set', () => {
-    const wrapper = ({ children }) => <ThemeProvider>{children}</ThemeProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <ThemeProvider>{children}</ThemeProvider>;
     const { result } = renderHook(() => useTheme(), { wrapper });
 
     act(() => {
@@ -69,7 +69,7 @@ describe('ThemeContext', () => {
   });
 
   it('should apply data-theme attribute to document element', () => {
-    const wrapper = ({ children }) => <ThemeProvider>{children}</ThemeProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <ThemeProvider>{children}</ThemeProvider>;
     renderHook(() => useTheme(), { wrapper });
 
     expect(document.documentElement.getAttribute('data-theme')).toBeDefined();

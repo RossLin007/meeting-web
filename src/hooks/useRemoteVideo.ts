@@ -20,6 +20,7 @@ export function useRemoteVideo({
     stopRemoteVideo,
 }: UseRemoteVideoOptions): UseRemoteVideoReturn {
     const elementMapRef = useRef<Map<string, HTMLDivElement>>(new Map());
+    const refCallbackMapRef = useRef<Map<string, (element: HTMLDivElement | null) => void>>(new Map());
     const activeStreamsRef = useRef<Set<string>>(new Set());
     const retryTimersRef = useRef<Map<string, number>>(new Map());
     const retryCountsRef = useRef<Map<string, number>>(new Map());
@@ -84,7 +85,10 @@ export function useRemoteVideo({
     }, [stopRemoteVideo, clearRetry]);
 
     const registerRemoteVideo = useCallback((userId: string) => {
-        return (element: HTMLDivElement | null) => {
+        const cached = refCallbackMapRef.current.get(userId);
+        if (cached) return cached;
+
+        const callback = (element: HTMLDivElement | null) => {
             if (element) {
                 elementMapRef.current.set(userId, element);
                 if (availableUsersRef.current.includes(userId)) {
@@ -95,7 +99,11 @@ export function useRemoteVideo({
 
             elementMapRef.current.delete(userId);
             stopStream(userId);
+            refCallbackMapRef.current.delete(userId);
         };
+
+        refCallbackMapRef.current.set(userId, callback);
+        return callback;
     }, [startStream, stopStream]);
 
     useEffect(() => {

@@ -8,6 +8,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { Home } from './Home';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 // Polyfill localStorage for jsdom
 const localStorageStore: Record<string, string> = {};
@@ -20,6 +21,21 @@ beforeAll(() => {
             clear: () => { Object.keys(localStorageStore).forEach(key => delete localStorageStore[key]); },
         },
         writable: true,
+    });
+
+    // Polyfill window.matchMedia for ThemeContext
+    Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        value: vi.fn().mockImplementation(query => ({
+            matches: false,
+            media: query,
+            onchange: null,
+            addListener: vi.fn(),
+            removeListener: vi.fn(),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            dispatchEvent: vi.fn(),
+        })),
     });
 });
 
@@ -105,9 +121,11 @@ global.fetch = vi.fn(() =>
 
 function renderWithRouter(component: React.ReactElement) {
     return render(
-        <BrowserRouter>
-            {component}
-        </BrowserRouter>
+        <ThemeProvider>
+            <BrowserRouter>
+                {component}
+            </BrowserRouter>
+        </ThemeProvider>
     );
 }
 
@@ -133,7 +151,8 @@ describe('Home Page', () => {
         expect(screen.getAllByText('Home').length).toBeGreaterThanOrEqual(1);
         expect(screen.getByText('Meetings')).toBeInTheDocument();
         expect(screen.getAllByText('Contacts').length).toBeGreaterThanOrEqual(1);
-        expect(screen.getByText('Settings')).toBeInTheDocument();
+        // Settings is now in the user card, not a separate nav item
+        expect(screen.getByTitle('Settings')).toBeInTheDocument();
     });
 
     it('renders action cards', () => {

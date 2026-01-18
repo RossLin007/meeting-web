@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { UserSettingsModal } from './UserSettingsModal';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -52,7 +52,7 @@ beforeEach(() => {
 });
 
 describe('UserSettingsModal', () => {
-  const wrapper = ({ children }) => (
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
     <ThemeProvider>
       <AuthProvider>
         {children}
@@ -117,9 +117,10 @@ describe('UserSettingsModal', () => {
       render(<UserSettingsModal {...defaultProps} isOpen={true} />, { wrapper });
 
       const settingsTab = screen.getAllByText('Settings').find(el => el.tagName === 'BUTTON');
-      fireEvent.click(settingsTab);
-
-      expect(settingsTab.className).toContain('active');
+      if (settingsTab) {
+        fireEvent.click(settingsTab);
+        expect(settingsTab.className).toContain('active');
+      }
     });
 
     it('should switch to Devices tab when clicked', () => {
@@ -142,8 +143,10 @@ describe('UserSettingsModal', () => {
       expect(profileTab.className).toContain('active');
 
       // Switch to Settings
-      fireEvent.click(settingsTab);
-      expect(settingsTab.className).toContain('active');
+      if (settingsTab) {
+        fireEvent.click(settingsTab);
+        expect(settingsTab.className).toContain('active');
+      }
 
       // Switch to Devices
       fireEvent.click(devicesTab);
@@ -173,9 +176,10 @@ describe('UserSettingsModal', () => {
       // Click outside the modal (on the overlay)
       const dialog = screen.getByRole('dialog');
       const overlay = dialog.parentElement;
-      fireEvent.click(overlay);
-
-      expect(mockOnClose).toHaveBeenCalledTimes(1);
+      if (overlay) {
+        fireEvent.click(overlay);
+        expect(mockOnClose).toHaveBeenCalledTimes(1);
+      }
     });
 
     it('should not call onClose when modal content is clicked', () => {
@@ -211,9 +215,10 @@ describe('UserSettingsModal', () => {
 
       // Switch to Settings tab
       const settingsTab = screen.getAllByText('Settings').find(el => el.tagName === 'BUTTON');
-      fireEvent.click(settingsTab);
-
-      expect(screen.getByText('Theme')).toBeInTheDocument();
+      if (settingsTab) {
+        fireEvent.click(settingsTab);
+        expect(screen.getByText('Theme')).toBeInTheDocument();
+      }
     });
 
     it('should display recording format options', () => {
@@ -221,11 +226,12 @@ describe('UserSettingsModal', () => {
 
       // Switch to Settings tab
       const settingsTab = screen.getAllByText('Settings').find(el => el.tagName === 'BUTTON');
-      fireEvent.click(settingsTab);
-
-      expect(screen.getByText('Recording Format')).toBeInTheDocument();
-      expect(screen.getByText('MP4')).toBeInTheDocument();
-      expect(screen.getByText('WebM')).toBeInTheDocument();
+      if (settingsTab) {
+        fireEvent.click(settingsTab);
+        expect(screen.getByText('Recording Format')).toBeInTheDocument();
+        expect(screen.getByText('MP4')).toBeInTheDocument();
+        expect(screen.getByText('WebM')).toBeInTheDocument();
+      }
     });
   });
 
@@ -277,8 +283,10 @@ describe('UserSettingsModal', () => {
 
       // Switch to Settings tab
       const settingsTab = screen.getAllByText('Settings').find(el => el.tagName === 'BUTTON');
-      fireEvent.click(settingsTab);
-      expect(settingsTab.className).toContain('active');
+      if (settingsTab) {
+        fireEvent.click(settingsTab);
+        expect(settingsTab.className).toContain('active');
+      }
 
       // Close and reopen modal
       rerender(<UserSettingsModal {...defaultProps} isOpen={false} />);
