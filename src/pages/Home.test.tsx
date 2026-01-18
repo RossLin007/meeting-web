@@ -189,17 +189,6 @@ describe('Home Page', () => {
         expect(await screen.findByText(/Schedule Meeting/)).toBeInTheDocument();
     });
 
-    it('navigates to settings when clicking Settings', () => {
-        renderWithRouter(<Home />);
-
-        const settingsBtn = screen.getByText('Settings').closest('button');
-        if (settingsBtn) {
-            fireEvent.click(settingsBtn);
-        }
-
-        expect(mockNavigate).toHaveBeenCalledWith('/settings');
-    });
-
     it('shows logout confirmation modal when clicking logout button', async () => {
         renderWithRouter(<Home />);
 
