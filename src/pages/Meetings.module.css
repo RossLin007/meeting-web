@@ -1530,23 +1530,42 @@
     }
 }
 
-/* 联系人页面布局 */
-.contactsHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--spacing-4);
-    gap: var(--spacing-4);
-    flex-wrap: wrap;
-}
-
-.contactsActions {
+/* 会议列表标签 */
+.tabs {
     display: flex;
     gap: var(--spacing-2);
+    margin-bottom: var(--spacing-4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: var(--spacing-3);
 }
 
-.contactSearchBox {
-    margin-bottom: var(--spacing-4);
+.tab {
+    padding: var(--spacing-2) var(--spacing-4);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-md);
+    color: rgba(255, 255, 255, 0.6);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.tab:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.tab.active {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: #3b82f6;
+    color: #fff;
+}
+
+/* 会议列表 */
+.meetingList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
 }[data-theme='light'] .logoutBtn {
     color: var(--text-secondary);
 }

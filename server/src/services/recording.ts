@@ -97,7 +97,7 @@ export async function startCloudRecording(params: StartRecordingParams): Promise
 
     // 根据人数决定录制模式
     // 1=单流录制, 2=混流录制（九宫格）
-    const recordMode = useMixStream ? 2 : 1;
+    const recordMode: 1 | 2 = useMixStream ? 2 : 1;
 
     try {
         // 判断房间号类型：纯数字用整型(1)，否则用字符串(0)
@@ -121,7 +121,7 @@ export async function startCloudRecording(params: StartRecordingParams): Promise
                 RecordMode: recordMode,   // 1=单流, 2=混流
                 MaxIdleTime: 60,          // 最大空闲时间 60 秒
                 StreamType: 0,            // 0=音视频, 1=仅音频, 2=仅视频
-                OutputFormat: 3,          // 0：HLS 1：HLS + MP4 2：HLS + FLV 3：MP4 4：FLV
+                OutputFormat: 1,          // 0：HLS 1：HLS + MP4 2：HLS + FLV 3：MP4 4：FLV
             },
 
             // 存储参数 - 腾讯云 COS
@@ -412,6 +412,10 @@ export async function saveRecordingToDB(params: {
     taskId: string;
     startedBy: string;
     title?: string;
+    recordMode?: 'mixed' | 'single';
+    userId?: string;
+    userName?: string;
+    parentId?: string;
 }): Promise<void> {
     // 延迟导入避免循环依赖
     const { getDatabase } = await import('../db');
@@ -419,11 +423,21 @@ export async function saveRecordingToDB(params: {
 
     try {
         const stmt = db.prepare(`
-            INSERT INTO recordings (id, meeting_id, task_id, started_by, title, started_at, status, visibility)
-            VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'), 'recording', 'host_only')
+            INSERT INTO recordings (id, meeting_id, task_id, started_by, title, started_at, status, visibility, record_mode, user_id, user_name, parent_id)
+            VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'), 'recording', 'host_only', ?, ?, ?, ?)
         `);
-        stmt.run(params.id, params.meetingId, params.taskId, params.startedBy, params.title || '会议录制');
-        console.log('💾 录制记录已保存到数据库:', params.id);
+        stmt.run(
+            params.id,
+            params.meetingId,
+            params.taskId,
+            params.startedBy,
+            params.title || '会议录制',
+            params.recordMode || 'mixed',
+            params.userId || null,
+            params.userName || null,
+            params.parentId || null
+        );
+        console.log('💾 录制记录已保存到数据库:', params.id, params.parentId ? `(子录制: ${params.userName})` : '');
     } catch (error) {
         console.error('❌ 保存录制记录失败:', error);
     }

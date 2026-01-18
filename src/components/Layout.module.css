@@ -216,6 +216,7 @@
     flex: 1;
     padding: var(--spacing-6);
     overflow-y: auto;
+    max-width: 100%;
 }
 
 /* 头部 */
@@ -227,6 +228,13 @@
     font-size: var(--text-2xl);
     font-weight: 600;
     margin: 0;
+}
+
+/* 内容区域 */
+.content {
+    max-width: 1400px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* 快捷操作卡片 */
@@ -1530,24 +1538,63 @@
     }
 }
 
-/* 联系人页面布局 */
-.contactsHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--spacing-4);
-    gap: var(--spacing-4);
-    flex-wrap: wrap;
+/* ==================== 浅色模式适配 ==================== */
+[data-theme='light'] .container {
+    background: var(--gradient-bg);
+    color: var(--text-primary);
 }
 
-.contactsActions {
-    display: flex;
-    gap: var(--spacing-2);
+[data-theme='light'] .loading {
+    background: var(--gradient-bg);
+    color: var(--text-secondary);
 }
 
-.contactSearchBox {
-    margin-bottom: var(--spacing-4);
-}[data-theme='light'] .logoutBtn {
+[data-theme='light'] .spinner {
+    border-color: rgba(0, 0, 0, 0.1);
+    border-top-color: var(--color-primary);
+}
+
+[data-theme='light'] .sidebar {
+    background: var(--gradient-sidebar);
+    border-right-color: var(--color-border);
+}
+
+[data-theme='light'] .logo span {
+    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+[data-theme='light'] .navItem {
+    color: var(--text-secondary);
+}
+
+[data-theme='light'] .navItem:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-primary);
+}
+
+[data-theme='light'] .navItem.active {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--color-primary);
+}
+
+[data-theme='light'] .userSection {
+    border-top-color: var(--color-border);
+}
+
+[data-theme='light'] .userCard {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid var(--color-border);
+}
+
+[data-theme='light'] .userName {
+    color: var(--text-primary);
+}
+
+[data-theme='light'] .settingsBtn,
+[data-theme='light'] .logoutBtn {
     color: var(--text-secondary);
 }
 

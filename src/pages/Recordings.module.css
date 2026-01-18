@@ -80,8 +80,13 @@
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .main {
@@ -90,7 +95,8 @@
     margin: 0 auto;
 }
 
-.loading, .empty {
+.loading,
+.empty {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -362,8 +368,116 @@
     .card {
         grid-template-columns: 1fr;
     }
-    
+
     .actions {
         justify-content: flex-end;
     }
+}
+
+/* 转录模态框样式 */
+.transcriptionModal {
+    width: 90vw;
+    max-width: 800px;
+    height: 80vh;
+    background: #1a1a2e;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.transcriptionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: #16213e;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.transcriptionHeader h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.closeBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.2s;
+}
+
+.closeBtn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* 合并转录按钮 */
+.mergeBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.mergeBtn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.mergeBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.mergeBtn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* 合并转录统计 */
+.mergeStats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.mergeStats span {
+    padding: 0.25rem 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+/* 合并转录内容 */
+.mergedContent {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+.mergedText {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0;
 }

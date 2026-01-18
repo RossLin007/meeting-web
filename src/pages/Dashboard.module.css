@@ -314,6 +314,7 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: var(--radius-lg);
     padding: var(--spacing-5);
+    margin-top: 20px;
 }
 
 .sectionHeader {
@@ -1530,24 +1531,7 @@
     }
 }
 
-/* 联系人页面布局 */
-.contactsHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--spacing-4);
-    gap: var(--spacing-4);
-    flex-wrap: wrap;
-}
-
-.contactsActions {
-    display: flex;
-    gap: var(--spacing-2);
-}
-
-.contactSearchBox {
-    margin-bottom: var(--spacing-4);
-}[data-theme='light'] .logoutBtn {
+[data-theme='light'] .logoutBtn {
     color: var(--text-secondary);
 }
 
@@ -1795,5 +1779,50 @@
 }
 
 [data-theme='light'] .emptyStateEnhanced p {
+    color: var(--text-secondary);
+}
+
+/* 欢迎区域浅色模式 */
+[data-theme='light'] .welcomeSection {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(147, 51, 234, 0.05) 100%);
+    border-color: rgba(59, 130, 246, 0.15);
+}
+
+[data-theme='light'] .welcomeGreeting {
+    background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+[data-theme='light'] .todayOverview {
+    color: var(--text-secondary);
+}
+
+/* 操作卡片浅色模式 */
+[data-theme='light'] .cardDark {
+    background: #fff;
+    border: 1px solid var(--color-border);
+    color: var(--text-primary);
+}
+
+[data-theme='light'] .cardDark:hover {
+    background: #f9fafb;
+    box-shadow: var(--shadow-md);
+}
+
+[data-theme='light'] .cardDark .cardIcon {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+[data-theme='light'] .cardDark .cardIcon svg {
+    color: var(--color-primary);
+}
+
+[data-theme='light'] .cardDark .cardTitle {
+    color: var(--text-primary);
+}
+
+[data-theme='light'] .cardDark .cardDesc {
     color: var(--text-secondary);
 }

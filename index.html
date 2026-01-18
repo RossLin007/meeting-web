@@ -10,8 +10,8 @@
   <!-- 安全策略 (CSP 可以通过 meta 设置) -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
                    script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://*.qq.com https://*.qcloud.com; 
-                   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
-                   font-src 'self' https://fonts.gstatic.com; 
+                   style-src 'self' 'unsafe-inline'; 
+                   font-src 'self'; 
                    img-src 'self' data: blob: https: http:; 
                    connect-src 'self' https://*.qq.com https://*.qcloud.com wss://*.qcloud.com wss://*.qq.com https://*.tencent.com wss://*.tencent.com https://*.rtc.qq.com wss://*.rtc.qq.com https://*.rtc-web.com wss://*.rtc-web.com https://*.rtc-web.io wss://*.rtc-web.io https://*.my-imcloud.com wss://*.my-imcloud.com https://*.55387.xyz http://localhost:* ws://localhost:*; 
                    media-src 'self' blob: https://*.myqcloud.com; 
@@ -21,9 +21,8 @@
   <!-- 注意: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy 应在服务器端配置 -->
 
   <title>智会 | ZhiHui Meeting</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Local Inter Font -->
+  <link rel="stylesheet" href="/fonts/inter/inter.css">
 </head>
 
 <body>

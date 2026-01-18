@@ -163,6 +163,11 @@ export function Meeting() {
         onError: (error) => {
             console.error('TRTC error:', error);
         },
+        onRemoteVideoStateChange: (userId, isVideoOn) => {
+            // TRTC 检测到远端视频状态变化，触发 Socket 重同步
+            console.log(`📹 TRTC 远端视频状态变化: ${userId} -> ${isVideoOn ? '开启' : '关闭'}`);
+            requestRoomState();
+        },
     });
 
     // 用于回调的离开会议函数 ref（避免循环依赖）
@@ -308,6 +313,30 @@ export function Meeting() {
 
         const join = async () => {
             try {
+                // 先获取已有成员列表（修复竞态条件：TRTC 事件先于 Socket 事件）
+                try {
+                    const stateResponse = await fetchWithTimeout(
+                        `${API_BASE_URL}/api/meetings/${roomId}/state`,
+                        {},
+                        DEFAULT_TIMEOUT
+                    );
+                    const stateResult = await stateResponse.json();
+                    if (stateResult.success && stateResult.data?.members) {
+                        const initialNames: Record<string, string> = {};
+                        stateResult.data.members.forEach((m: { userId: string; userName: string }) => {
+                            if (m.userName && m.userName !== m.userId) {
+                                initialNames[m.userId] = m.userName;
+                            }
+                        });
+                        if (Object.keys(initialNames).length > 0) {
+                            console.log('📋 预加载成员名称:', initialNames);
+                            setRemoteUserNames(prev => ({ ...initialNames, ...prev }));
+                        }
+                    }
+                } catch (preloadError) {
+                    console.warn('预加载成员名称失败（不影响加入）:', preloadError);
+                }
+
                 console.log('🚀 加入 TRTC 房间:', roomId, '用户:', currentUser.userId);
                 // 加入 TRTC 房间
                 await joinRoom({
@@ -529,6 +558,7 @@ export function Meeting() {
         .filter((member) => member.isVideoOn && member.userId)
         .map((member) => member.userId);
 
+    // Socket 为唯一状态源，TRTC 状态变化通过回调触发重同步
     const { registerRemoteVideo } = useRemoteVideo({
         remoteUsers,
         availableUsers: socketVideoUserIds,

@@ -14,6 +14,7 @@ export interface RemoteUserState {
 
 export interface UseTRTCOptions {
     onError?: (error: Error) => void;
+    onRemoteVideoStateChange?: (userId: string, isVideoOn: boolean) => void;
 }
 
 export interface UseTRTCReturn {
@@ -90,6 +91,8 @@ export function useTRTC(options: UseTRTCOptions = {}): UseTRTCReturn {
                     return;
                 }
                 setRemoteVideoAvailableUsers((prev) => prev.includes(userId) ? prev : [...prev, userId]);
+                // 通知调用者远端视频状态变化
+                options.onRemoteVideoStateChange?.(userId, true);
             });
 
             trtcService.on('onRemoteVideoUnavailable', (userId, streamType) => {
@@ -101,6 +104,8 @@ export function useTRTC(options: UseTRTCOptions = {}): UseTRTCReturn {
                     return;
                 }
                 setRemoteVideoAvailableUsers((prev) => prev.filter((id) => id !== userId));
+                // 通知调用者远端视频状态变化
+                options.onRemoteVideoStateChange?.(userId, false);
             });
 
             trtcService.on('onNetworkQuality', (quality) => {
@@ -217,13 +222,13 @@ export function useTRTC(options: UseTRTCOptions = {}): UseTRTCReturn {
     // 播放远程视频
     const startRemoteVideo = useCallback(async (userId: string, view: string | HTMLElement, isSub = false) => {
         const streamType = isSub ? TRTC.TYPE.STREAM_TYPE_SUB : TRTC.TYPE.STREAM_TYPE_MAIN;
-        return trtcService.startRemoteVideo(userId, view, streamType);
+        return trtcService.startRemoteVideo(userId, view, streamType as typeof TRTC.TYPE.STREAM_TYPE_MAIN);
     }, []);
 
     // 停止远程视频
     const stopRemoteVideo = useCallback(async (userId: string, isSub = false) => {
         const streamType = isSub ? TRTC.TYPE.STREAM_TYPE_SUB : TRTC.TYPE.STREAM_TYPE_MAIN;
-        await trtcService.stopRemoteVideo(userId, streamType);
+        await trtcService.stopRemoteVideo(userId, streamType as typeof TRTC.TYPE.STREAM_TYPE_MAIN);
     }, []);
 
     return {

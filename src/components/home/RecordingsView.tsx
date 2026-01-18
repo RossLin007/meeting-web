@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Modal, Input } from '@/components/common';
 import { FilmIcon } from '@/components/icons';
 import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
+import { TranscriptionPanel } from '@/components/TranscriptionPanel';
 import Hls from 'hls.js';
 import styles from '@/pages/Home.module.css';
 
@@ -24,6 +25,7 @@ interface StorageFile {
     size: number;
     lastModified: string;
     url?: string;
+    recordingId?: string;  // 关联的录制ID
 }
 
 export function RecordingsView() {
@@ -36,6 +38,8 @@ export function RecordingsView() {
     const [renameFile, setRenameFile] = useState<{ key: string; name: string } | null>(null);
     const [newFileName, setNewFileName] = useState('');
     const [selectedFile, setSelectedFile] = useState<{ key: string; name: string; url: string } | null>(null);
+    const [transcriptionFile, setTranscriptionFile] = useState<StorageFile | null>(null);
+    const [isCreatingRecording, setIsCreatingRecording] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
 
     // Load storage data
@@ -101,10 +105,19 @@ export function RecordingsView() {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-    // Format storage date
+    // Format storage date (Shanghai timezone, full time)
     const formatStorageDate = (dateString: string) => {
         const date = new Date(dateString);
-        return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        return date.toLocaleString('zh-CN', {
+            timeZone: 'Asia/Shanghai',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+        });
     };
 
     // Delete file
@@ -164,6 +177,46 @@ export function RecordingsView() {
     const handlePlayFile = (file: { key: string; name: string; url?: string }) => {
         if (file.url && file.name.endsWith('.m3u8')) {
             setSelectedFile({ key: file.key, name: file.name, url: file.url });
+        }
+    };
+
+    // Open transcription panel (create recording record if needed)
+    const openTranscription = async (file: StorageFile) => {
+        // If already has recordingId, open directly
+        if (file.recordingId) {
+            setTranscriptionFile(file);
+            return;
+        }
+
+        // Otherwise create a recording record first
+        setIsCreatingRecording(true);
+        try {
+            const response = await fetchWithTimeout(
+                `${API_BASE_URL}/api/recording/create-from-file`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cosFileKey: file.key,
+                        fileName: file.name,
+                        fileUrl: file.url,
+                    }),
+                },
+                DEFAULT_TIMEOUT
+            );
+            const result = await response.json();
+
+            if (result.success && result.recordingId) {
+                file.recordingId = result.recordingId;
+                setTranscriptionFile(file);
+            } else {
+                alert(t('transcription.startFailed') + ': ' + (result.error || '未知错误'));
+            }
+        } catch (err) {
+            console.error('Create recording error:', err);
+            alert(t('transcription.startFailed'));
+        } finally {
+            setIsCreatingRecording(false);
         }
     };
 
@@ -230,6 +283,23 @@ export function RecordingsView() {
                                                 >
                                                     <svg viewBox="0 0 24 24" fill="currentColor">
                                                         <path d="M8 5v14l11-7z" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                            {/* Transcription button - for MP4 files */}
+                                            {file.name.endsWith('.mp4') && (
+                                                <button
+                                                    className={styles.fileActionBtn}
+                                                    onClick={() => openTranscription(file)}
+                                                    title={t('transcription.title')}
+                                                    disabled={isCreatingRecording}
+                                                >
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                                        <polyline points="14 2 14 8 20 8" />
+                                                        <line x1="16" y1="13" x2="8" y2="13" />
+                                                        <line x1="16" y1="17" x2="8" y2="17" />
+                                                        <line x1="10" y1="9" x2="8" y2="9" />
                                                     </svg>
                                                 </button>
                                             )}
@@ -328,6 +398,33 @@ export function RecordingsView() {
                         <Button onClick={() => setSelectedFile(null)}>
                             {t('home.closePlayer')}
                         </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Transcription modal */}
+            {transcriptionFile && transcriptionFile.recordingId && (
+                <div
+                    className={styles.playerOverlay}
+                    onClick={() => setTranscriptionFile(null)}
+                >
+                    <div
+                        className={styles.transcriptionModal || styles.player}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h3 style={{ margin: 0 }}>{transcriptionFile.name}</h3>
+                            <Button onClick={() => setTranscriptionFile(null)}>
+                                ✕
+                            </Button>
+                        </div>
+                        <TranscriptionPanel
+                            recordingId={transcriptionFile.recordingId}
+                            onSeek={(timeMs) => {
+                                console.log('Seek to:', timeMs);
+                            }}
+                        />
                     </div>
                 </div>
             )}

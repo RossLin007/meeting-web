@@ -289,6 +289,70 @@ const runMigrations = (): void => {
             ON recordings(task_id)
         `);
         console.log('✅ 录制表索引已就绪');
+
+        // 迁移 6.1: 添加单流录制支持字段
+        if (!recordingColumnNames.has('record_mode')) {
+            console.log('🔄 运行迁移：添加单流录制支持字段...');
+            db.exec(`ALTER TABLE recordings ADD COLUMN record_mode TEXT DEFAULT 'mixed' CHECK(record_mode IN ('mixed', 'single'))`);
+            db.exec(`ALTER TABLE recordings ADD COLUMN user_id TEXT`);  // 单流录制时对应的用户
+            db.exec(`ALTER TABLE recordings ADD COLUMN user_name TEXT`);  // 用户名称
+            db.exec(`ALTER TABLE recordings ADD COLUMN parent_id TEXT REFERENCES recordings(id)`);  // 父录制ID
+            console.log('✅ 迁移完成：录制表已添加单流录制支持');
+        }
+
+        // 迁移 7: 创建转录相关表
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS transcriptions (
+                id TEXT PRIMARY KEY,
+                recording_id TEXT NOT NULL,
+                task_id TEXT,
+                status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'failed')),
+                full_text TEXT,
+                error_message TEXT,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                completed_at INTEGER,
+                FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE
+            )
+        `);
+
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS transcription_segments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transcription_id TEXT NOT NULL,
+                speaker_id INTEGER NOT NULL,
+                begin_time INTEGER NOT NULL,
+                end_time INTEGER NOT NULL,
+                text TEXT NOT NULL,
+                FOREIGN KEY (transcription_id) REFERENCES transcriptions(id) ON DELETE CASCADE
+            )
+        `);
+
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS speaker_labels (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transcription_id TEXT NOT NULL,
+                speaker_id INTEGER NOT NULL,
+                label TEXT NOT NULL,
+                UNIQUE(transcription_id, speaker_id),
+                FOREIGN KEY (transcription_id) REFERENCES transcriptions(id) ON DELETE CASCADE
+            )
+        `);
+
+        // 创建转录相关索引
+        db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_transcriptions_recording 
+            ON transcriptions(recording_id)
+        `);
+        db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_transcription_segments_transcription 
+            ON transcription_segments(transcription_id)
+        `);
+        db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_speaker_labels_transcription 
+            ON speaker_labels(transcription_id)
+        `);
+
+        console.log('✅ 转录表已就绪 (transcriptions, transcription_segments, speaker_labels)');
     } catch (error) {
         console.error('❌ 数据库迁移失败:', error);
         throw error;

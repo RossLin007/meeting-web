@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
+import { TranscriptionPanel } from '@/components/TranscriptionPanel';
 import styles from './Recordings.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -68,6 +69,27 @@ const LockIcon = () => (
     </svg>
 );
 
+const TranscriptIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <line x1="10" y1="9" x2="8" y2="9" />
+    </svg>
+);
+
+const MergeIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M8 6h13" />
+        <path d="M8 12h13" />
+        <path d="M8 18h13" />
+        <path d="M3 6L5 8L3 10" />
+        <path d="M3 12h2" />
+        <path d="M3 18L5 20L3 22" />
+    </svg>
+);
+
 export function Recordings() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -82,6 +104,13 @@ export function Recordings() {
     const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [videoError, setVideoError] = useState<string | null>(null);
+    const [transcriptionRecording, setTranscriptionRecording] = useState<Recording | null>(null);
+    const [mergedTranscription, setMergedTranscription] = useState<{
+        fullText: string;
+        segmentCount: number;
+        recordingCount: number;
+    } | null>(null);
+    const [isMerging, setIsMerging] = useState(false);
 
     // 加载录制列表
     const loadRecordings = useCallback(async () => {
@@ -115,6 +144,39 @@ export function Recordings() {
     useEffect(() => {
         loadRecordings();
     }, [loadRecordings]);
+
+    // 加载合并转录
+    const loadMergedTranscription = useCallback(async () => {
+        if (!meetingId) {
+            alert(t('recordings.selectMeetingFirst'));
+            return;
+        }
+
+        setIsMerging(true);
+        try {
+            const response = await fetchWithTimeout(
+                `${API_URL}/api/transcription/merge/${meetingId}`,
+                {},
+                60000
+            );
+            const result = await response.json();
+
+            if (result.success) {
+                setMergedTranscription({
+                    fullText: result.fullText,
+                    segmentCount: result.segmentCount,
+                    recordingCount: result.recordingCount,
+                });
+            } else {
+                alert(result.error || t('transcription.mergeFailed'));
+            }
+        } catch (err) {
+            console.error('Failed to load merged transcription:', err);
+            alert(t('transcription.mergeFailed'));
+        } finally {
+            setIsMerging(false);
+        }
+    }, [meetingId, t]);
 
     // 格式化时长
     const formatDuration = (seconds: number | null) => {
@@ -189,6 +251,21 @@ export function Recordings() {
                         <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
                     </svg>
                 </button>
+                {meetingId && (
+                    <button
+                        className={styles.mergeBtn}
+                        onClick={loadMergedTranscription}
+                        disabled={isMerging}
+                        title={t('transcription.viewMerged') || '查看合并转录'}
+                    >
+                        {isMerging ? (
+                            <span className={styles.spinner} />
+                        ) : (
+                            <MergeIcon />
+                        )}
+                        <span>{t('transcription.viewMerged') || '合并转录'}</span>
+                    </button>
+                )}
             </header>
 
             <main className={styles.main}>
@@ -248,6 +325,15 @@ export function Recordings() {
                                 </div>
 
                                 <div className={styles.actions}>
+                                    {recording.status === 'completed' && (
+                                        <button
+                                            className={styles.actionBtn}
+                                            onClick={() => setTranscriptionRecording(recording)}
+                                            title={t('transcription.title')}
+                                        >
+                                            <TranscriptIcon />
+                                        </button>
+                                    )}
                                     {recording.fileUrl && (
                                         <button
                                             className={styles.actionBtn}
@@ -316,6 +402,68 @@ export function Recordings() {
                         >
                             {t('common.close')}
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* 转录面板模态框 */}
+            {transcriptionRecording && (
+                <div
+                    className={styles.playerOverlay}
+                    onClick={() => setTranscriptionRecording(null)}
+                >
+                    <div
+                        className={styles.transcriptionModal}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className={styles.transcriptionHeader}>
+                            <h3>{transcriptionRecording.title || t('recordings.title')}</h3>
+                            <button
+                                className={styles.closeBtn}
+                                onClick={() => setTranscriptionRecording(null)}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <TranscriptionPanel
+                            recordingId={transcriptionRecording.id}
+                            onSeek={(timeMs) => {
+                                // 如果需要，可以同时打开视频并跳转
+                                console.log('Seek to:', timeMs);
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* 合并转录模态框 */}
+            {mergedTranscription && (
+                <div
+                    className={styles.playerOverlay}
+                    onClick={() => setMergedTranscription(null)}
+                >
+                    <div
+                        className={styles.transcriptionModal}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className={styles.transcriptionHeader}>
+                            <h3>{t('transcription.mergedTitle') || '会议完整转录'}</h3>
+                            <div className={styles.mergeStats}>
+                                <span>{mergedTranscription.recordingCount} {t('transcription.recordings') || '个录制'}</span>
+                                <span>{mergedTranscription.segmentCount} {t('transcription.segments') || '个片段'}</span>
+                            </div>
+                            <button
+                                className={styles.closeBtn}
+                                onClick={() => setMergedTranscription(null)}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className={styles.mergedContent}>
+                            <pre className={styles.mergedText}>
+                                {mergedTranscription.fullText || t('transcription.noContent')}
+                            </pre>
+                        </div>
                     </div>
                 </div>
             )}

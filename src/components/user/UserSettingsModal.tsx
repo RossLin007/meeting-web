@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSettingsStorage } from '@/hooks/useSettingsStorage';
 import { ThemeSelector } from '@/components/settings/ThemeSelector';
+import { LanguageSelector } from '@/components/settings/LanguageSelector';
 import styles from './UserSettingsModal.module.css';
 
 export type TabType = 'profile' | 'settings' | 'devices';
@@ -205,6 +206,11 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 {/* Theme Selector */}
                 <div className={styles.settingItem}>
                   <ThemeSelector />
+                </div>
+
+                {/* Language Selector */}
+                <div className={styles.settingItem}>
+                  <LanguageSelector />
                 </div>
 
                 {/* Recording Format */}

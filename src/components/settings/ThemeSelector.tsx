@@ -1,40 +1,44 @@
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 import styles from './ThemeSelector.module.css';
 import type { ThemeMode } from '@/contexts/ThemeContext';
 
-const THEME_OPTIONS: Array<{
+interface ThemeOption {
   value: ThemeMode;
-  title: string;
-  description: string;
+  titleKey: string;
+  descriptionKey: string;
   previewClass: string;
-}> = [
+}
+
+const THEME_OPTIONS: ThemeOption[] = [
   {
     value: 'light',
-    title: 'Light',
-    description: 'Always use light theme',
-    previewClass: styles.previewLight,
+    titleKey: 'settings.themeLight',
+    descriptionKey: 'settings.themeLightDesc',
+    previewClass: 'previewLight',
   },
   {
     value: 'dark',
-    title: 'Dark',
-    description: 'Always use dark theme',
-    previewClass: styles.previewDark,
+    titleKey: 'settings.themeDark',
+    descriptionKey: 'settings.themeDarkDesc',
+    previewClass: 'previewDark',
   },
   {
     value: 'system',
-    title: 'System',
-    description: 'Follow your operating system preference',
-    previewClass: styles.previewSystem,
+    titleKey: 'settings.themeSystem',
+    descriptionKey: 'settings.themeSystemDesc',
+    previewClass: 'previewSystem',
   },
 ];
 
 export function ThemeSelector() {
   const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <div className={styles.container}>
-      <h3 className={styles.label}>Theme</h3>
-      <p className={styles.description}>Choose your preferred color theme</p>
+      <h3 className={styles.label}>{t('settings.theme')}</h3>
+      <p className={styles.description}>{t('settings.themeDescription')}</p>
 
       <div className={styles.options}>
         {THEME_OPTIONS.map((option) => (
@@ -52,13 +56,14 @@ export function ThemeSelector() {
           >
             <div className={styles.optionRadio} />
             <div className={styles.optionContent}>
-              <h4 className={styles.optionTitle}>{option.title}</h4>
-              <p className={styles.optionDesc}>{option.description}</p>
+              <h4 className={styles.optionTitle}>{t(option.titleKey)}</h4>
+              <p className={styles.optionDesc}>{t(option.descriptionKey)}</p>
             </div>
-            <div className={`${styles.optionPreview} ${option.previewClass}`} />
+            <div className={`${styles.optionPreview} ${styles[option.previewClass]}`} />
           </div>
         ))}
       </div>
     </div>
   );
 }
+
