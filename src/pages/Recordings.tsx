@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
 import { TranscriptionPanel } from '@/components/TranscriptionPanel';
+import { MeetingTranscription } from '@/components/MeetingTranscription';
 import styles from './Recordings.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -105,12 +106,7 @@ export function Recordings() {
     const [error, setError] = useState<string | null>(null);
     const [videoError, setVideoError] = useState<string | null>(null);
     const [transcriptionRecording, setTranscriptionRecording] = useState<Recording | null>(null);
-    const [mergedTranscription, setMergedTranscription] = useState<{
-        fullText: string;
-        segmentCount: number;
-        recordingCount: number;
-    } | null>(null);
-    const [isMerging, setIsMerging] = useState(false);
+    const [showMeetingTranscription, setShowMeetingTranscription] = useState(false);
 
     // 加载录制列表
     const loadRecordings = useCallback(async () => {
@@ -144,39 +140,6 @@ export function Recordings() {
     useEffect(() => {
         loadRecordings();
     }, [loadRecordings]);
-
-    // 加载合并转录
-    const loadMergedTranscription = useCallback(async () => {
-        if (!meetingId) {
-            alert(t('recordings.selectMeetingFirst'));
-            return;
-        }
-
-        setIsMerging(true);
-        try {
-            const response = await fetchWithTimeout(
-                `${API_URL}/api/transcription/merge/${meetingId}`,
-                {},
-                60000
-            );
-            const result = await response.json();
-
-            if (result.success) {
-                setMergedTranscription({
-                    fullText: result.fullText,
-                    segmentCount: result.segmentCount,
-                    recordingCount: result.recordingCount,
-                });
-            } else {
-                alert(result.error || t('transcription.mergeFailed'));
-            }
-        } catch (err) {
-            console.error('Failed to load merged transcription:', err);
-            alert(t('transcription.mergeFailed'));
-        } finally {
-            setIsMerging(false);
-        }
-    }, [meetingId, t]);
 
     // 格式化时长
     const formatDuration = (seconds: number | null) => {
@@ -254,16 +217,11 @@ export function Recordings() {
                 {meetingId && (
                     <button
                         className={styles.mergeBtn}
-                        onClick={loadMergedTranscription}
-                        disabled={isMerging}
-                        title={t('transcription.viewMerged') || '查看合并转录'}
+                        onClick={() => setShowMeetingTranscription(true)}
+                        title={t('transcription.viewMerged') || '查看完整转录'}
                     >
-                        {isMerging ? (
-                            <span className={styles.spinner} />
-                        ) : (
-                            <MergeIcon />
-                        )}
-                        <span>{t('transcription.viewMerged') || '合并转录'}</span>
+                        <MergeIcon />
+                        <span>{t('transcription.viewMerged') || '完整转录'}</span>
                     </button>
                 )}
             </header>
@@ -436,34 +394,31 @@ export function Recordings() {
                 </div>
             )}
 
-            {/* 合并转录模态框 */}
-            {mergedTranscription && (
+            {/* 完整会议转录模态框 */}
+            {showMeetingTranscription && meetingId && (
                 <div
                     className={styles.playerOverlay}
-                    onClick={() => setMergedTranscription(null)}
+                    onClick={() => setShowMeetingTranscription(false)}
                 >
                     <div
                         className={styles.transcriptionModal}
                         onClick={e => e.stopPropagation()}
                     >
                         <div className={styles.transcriptionHeader}>
-                            <h3>{t('transcription.mergedTitle') || '会议完整转录'}</h3>
-                            <div className={styles.mergeStats}>
-                                <span>{mergedTranscription.recordingCount} {t('transcription.recordings') || '个录制'}</span>
-                                <span>{mergedTranscription.segmentCount} {t('transcription.segments') || '个片段'}</span>
-                            </div>
+                            <h3>{t('transcription.meetingTranscript') || '会议完整转录'}</h3>
                             <button
                                 className={styles.closeBtn}
-                                onClick={() => setMergedTranscription(null)}
+                                onClick={() => setShowMeetingTranscription(false)}
                             >
                                 ✕
                             </button>
                         </div>
-                        <div className={styles.mergedContent}>
-                            <pre className={styles.mergedText}>
-                                {mergedTranscription.fullText || t('transcription.noContent')}
-                            </pre>
-                        </div>
+                        <MeetingTranscription
+                            meetingId={meetingId}
+                            onSeek={(timeMs) => {
+                                console.log('Seek to:', timeMs);
+                            }}
+                        />
                     </div>
                 </div>
             )}

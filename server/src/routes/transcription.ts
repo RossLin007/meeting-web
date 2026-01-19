@@ -257,6 +257,32 @@ router.post('/:id/sync', async (req: Request, res: Response) => {
                     user_name: string | null;
                 } | undefined;
 
+                // 辅助函数：根据 userId 查找用户名
+                const findUserName = (userId: string): string | null => {
+                    // 1. 优先从 users 表查找
+                    const user = db.prepare(`
+                        SELECT name FROM users WHERE id = ?
+                    `).get(userId) as { name: string } | undefined;
+                    if (user?.name) {
+                        console.log(`   ✅ 从 users 表找到用户名: ${user.name}`);
+                        return user.name;
+                    }
+
+                    // 2. 从 meeting_members 表查找
+                    const member = db.prepare(`
+                        SELECT user_name FROM meeting_members WHERE user_id = ? LIMIT 1
+                    `).get(userId) as { user_name: string } | undefined;
+                    if (member?.user_name) {
+                        console.log(`   ✅ 从 meeting_members 表找到用户名: ${member.user_name}`);
+                        return member.user_name;
+                    }
+
+                    // 3. 使用 userId 前 8 位作为显示名
+                    const shortId = userId.substring(0, 8);
+                    console.log(`   ⚠️ 未找到用户名，使用 userId 前缀: ${shortId}`);
+                    return shortId;
+                };
+
                 // 方式1: 单流录制 - 从文件名解析 userId
                 let singleStreamUserName: string | null = null;
 
@@ -270,15 +296,14 @@ router.post('/:id/sync', async (req: Request, res: Response) => {
                     const parsedUserId = parseUserIdFromFilename(recording.cos_file_key);
                     if (parsedUserId) {
                         console.log(`📌 单流录制: 从文件名解析出 userId = ${parsedUserId}`);
+                        singleStreamUserName = findUserName(parsedUserId);
 
-                        // 查找用户名
-                        const user = db.prepare(`
-                            SELECT user_name FROM meeting_members WHERE user_id = ? LIMIT 1
-                        `).get(parsedUserId) as { user_name: string } | undefined;
-
-                        if (user) {
-                            singleStreamUserName = user.user_name;
-                            console.log(`📌 单流录制: 关联到用户名 = ${singleStreamUserName}`);
+                        // 更新录制记录的 user_id 和 user_name（便于后续使用）
+                        if (singleStreamUserName) {
+                            db.prepare(`
+                                UPDATE recordings SET user_id = ?, user_name = ? WHERE id = ?
+                            `).run(parsedUserId, singleStreamUserName, transcription.recording_id);
+                            console.log(`   💾 已更新录制记录的用户信息`);
                         }
                     }
                 }
@@ -291,12 +316,12 @@ router.post('/:id/sync', async (req: Request, res: Response) => {
                     }
                 }
                 // 方式2: 混流录制 - 按参与者顺序分配
-                else if (recording?.meeting_id) {
+                else if (recording?.meeting_id && recording.meeting_id !== 'file-upload') {
                     const members = db.prepare(`
-                        SELECT DISTINCT user_name FROM meeting_members 
+                        SELECT DISTINCT user_id, user_name FROM meeting_members 
                         WHERE meeting_id = ?
                         ORDER BY joined_at ASC
-                    `).all(recording.meeting_id) as Array<{ user_name: string }>;
+                    `).all(recording.meeting_id) as Array<{ user_id: string; user_name: string }>;
 
                     if (members.length > 0) {
                         console.log(`🔗 混流录制: 自动关联说话人与参与者 (${parsedResult.speakerIds.length} 说话人, ${members.length} 参与者)`);
@@ -304,8 +329,10 @@ router.post('/:id/sync', async (req: Request, res: Response) => {
                         for (let i = 0; i < parsedResult.speakerIds.length; i++) {
                             const speakerId = parsedResult.speakerIds[i];
                             if (i < members.length) {
-                                await transcriptionService.updateSpeakerLabel(id, speakerId, members[i].user_name);
-                                console.log(`   说话人 ${speakerId + 1} -> ${members[i].user_name}`);
+                                // 优先使用 users 表的名字
+                                const userName = findUserName(members[i].user_id) || members[i].user_name;
+                                await transcriptionService.updateSpeakerLabel(id, speakerId, userName);
+                                console.log(`   说话人 ${speakerId + 1} -> ${userName}`);
                             }
                         }
                     }
@@ -502,128 +529,68 @@ router.get('/merge/:meetingId', async (req: Request, res: Response) => {
             });
         }
 
-        const db = getDatabase();
+        // 使用服务函数获取会议完整转录
+        const result = await transcriptionService.getMeetingTranscription(meetingId);
 
-        // 查找该会议的所有录制（单流录制会有多个）
-        const recordings = db.prepare(`
-            SELECT id, user_id, user_name, cos_file_key, started_at, record_mode
-            FROM recordings 
-            WHERE meeting_id = ? AND status = 'completed'
-            ORDER BY started_at ASC
-        `).all(meetingId) as Array<{
-            id: string;
-            user_id: string | null;
-            user_name: string | null;
-            cos_file_key: string | null;
-            started_at: number;
-            record_mode: string | null;
-        }>;
-
-        if (recordings.length === 0) {
+        if (!result) {
             return res.status(404).json({
                 success: false,
-                error: 'No recordings found for this meeting',
+                error: 'No transcription found for this meeting',
             });
         }
 
-        console.log(`   📁 找到 ${recordings.length} 个录制`);
-
-        // 计算时间偏移基准（最早的录制开始时间）
-        const baseStartTime = Math.min(...recordings.map(r => r.started_at));
-
-        interface MergedSegment {
-            userId: string;
-            userName: string;
-            beginTime: number;
-            endTime: number;
-            text: string;
-        }
-
-        const mergedSegments: MergedSegment[] = [];
-
-        // 获取每个录制的转录结果并合并
-        for (const recording of recordings) {
-            // 计算该录制相对于基准的时间偏移（毫秒）
-            const timeOffset = (recording.started_at - baseStartTime) * 1000;
-
-            // 尝试从文件名解析 userId
-            let userId = recording.user_id;
-            let userName = recording.user_name;
-
-            if (!userId && recording.cos_file_key) {
-                userId = parseUserIdFromFilename(recording.cos_file_key);
-            }
-
-            // 如果仍然没有 userName，尝试从 meeting_members 查找
-            if (!userName && userId) {
-                const member = db.prepare(`
-                    SELECT user_name FROM meeting_members WHERE user_id = ? LIMIT 1
-                `).get(userId) as { user_name: string } | undefined;
-
-                if (member) {
-                    userName = member.user_name;
-                }
-            }
-
-            // 获取转录记录
-            const transcription = db.prepare(`
-                SELECT id FROM transcriptions 
-                WHERE recording_id = ? AND status = 'completed'
-                ORDER BY created_at DESC LIMIT 1
-            `).get(recording.id) as { id: string } | undefined;
-
-            if (!transcription) {
-                console.log(`   ⚠️ 录制 ${recording.id} 没有完成的转录`);
-                continue;
-            }
-
-            // 获取转录片段
-            const segments = db.prepare(`
-                SELECT speaker_id, begin_time, end_time, text
-                FROM transcription_segments
-                WHERE transcription_id = ?
-                ORDER BY begin_time ASC
-            `).all(transcription.id) as Array<{
-                speaker_id: number;
-                begin_time: number;
-                end_time: number;
-                text: string;
-            }>;
-
-            // 将片段加入合并列表，应用时间偏移
-            for (const seg of segments) {
-                mergedSegments.push({
-                    userId: userId || 'unknown',
-                    userName: userName || `用户 ${userId?.substring(0, 8) || '未知'}`,
-                    beginTime: seg.begin_time + timeOffset,
-                    endTime: seg.end_time + timeOffset,
-                    text: seg.text,
-                });
-            }
-
-            console.log(`   ✅ ${userName || userId}: ${segments.length} 个片段 (偏移 ${timeOffset}ms)`);
-        }
-
-        // 按时间顺序排序
-        mergedSegments.sort((a, b) => a.beginTime - b.beginTime);
-
-        console.log(`   📝 合并完成: ${mergedSegments.length} 个片段`);
-
-        // 生成完整文本
-        const fullText = mergedSegments
-            .map(seg => `[${formatTime(seg.beginTime)}] ${seg.userName}: ${seg.text}`)
-            .join('\n');
-
         return res.json({
             success: true,
-            meetingId,
-            recordingCount: recordings.length,
-            segmentCount: mergedSegments.length,
-            segments: mergedSegments,
-            fullText,
+            meetingId: result.meetingId,
+            meetingTitle: result.meetingTitle,
+            participants: result.participants,
+            recordingCount: result.participants.length,
+            segmentCount: result.segments.length,
+            segments: result.segments,
+            fullText: result.fullText,
         });
     } catch (error) {
         console.error('Merge transcriptions error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Internal server error',
+        });
+    }
+});
+
+/**
+ * 获取会议完整转录（别名，方便前端调用）
+ * GET /api/transcription/meeting/:meetingId
+ */
+router.get('/meeting/:meetingId', async (req: Request, res: Response) => {
+    console.log('');
+    console.log('📝 [GET /api/transcription/meeting/:meetingId] 获取会议完整转录');
+
+    try {
+        const { meetingId } = req.params;
+
+        if (!meetingId) {
+            return res.status(400).json({
+                success: false,
+                error: 'meetingId is required',
+            });
+        }
+
+        const result = await transcriptionService.getMeetingTranscription(meetingId);
+
+        if (!result) {
+            return res.status(404).json({
+                success: false,
+                error: 'No transcription found for this meeting',
+            });
+        }
+
+        return res.json({
+            success: true,
+            data: result,
+        });
+    } catch (error) {
+        console.error('Get meeting transcription error:', error);
         return res.status(500).json({
             success: false,
             error: error instanceof Error ? error.message : 'Internal server error',

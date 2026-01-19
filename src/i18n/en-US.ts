@@ -459,6 +459,9 @@ const enUS = {
         mergeFailed: 'Failed to merge transcriptions',
         recordings: 'recordings',
         segments: 'segments',
+        meetingTranscript: 'Complete Meeting Transcript',
+        participants: 'participants',
+        loadFailed: 'Failed to load transcription',
     },
 };
 

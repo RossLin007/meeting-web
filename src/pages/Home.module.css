@@ -1225,10 +1225,14 @@
 
 .fileName {
     font-weight: 500;
-    max-width: 400px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    word-break: break-all;
+}
+
+.fileUrl {
+    font-size: var(--text-xs);
+    color: rgba(255, 255, 255, 0.5);
+    word-break: break-all;
+    margin-top: 4px;
 }
 
 .fileActions {
@@ -1547,7 +1551,9 @@
 
 .contactSearchBox {
     margin-bottom: var(--spacing-4);
-}[data-theme='light'] .logoutBtn {
+}
+
+[data-theme='light'] .logoutBtn {
     color: var(--text-secondary);
 }
 
@@ -1729,6 +1735,10 @@
 
 [data-theme='light'] .fileName {
     color: var(--text-primary);
+}
+
+[data-theme='light'] .fileUrl {
+    color: var(--text-tertiary);
 }
 
 [data-theme='light'] .fileActionBtn {

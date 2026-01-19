@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { generateUserSig } from '../utils/userSig';
 import recordingService from '../services/recording';
 import { getDatabase } from '../db';
-import { getFileUrl } from '../utils/cos';
+import { getFileUrl, parseUserIdFromFilename } from '../utils/cos';
 
 const router = Router();
 
@@ -170,9 +170,36 @@ router.post('/create-from-file', async (req: Request, res: Response) => {
             finalFileUrl = await getFileUrl(cosFileKey);
         }
 
+        // 从文件名解析 userId（单流录制文件包含用户ID）
+        let userId: string | null = null;
+        let userName: string | null = null;
+
+        const parsedUserId = parseUserIdFromFilename(cosFileKey);
+        if (parsedUserId) {
+            userId = parsedUserId;
+            console.log(`   📌 解析出 userId: ${userId}`);
+
+            // 查找用户名：优先 users 表，其次 meeting_members 表
+            const user = db.prepare(`SELECT name FROM users WHERE id = ?`).get(userId) as { name: string } | undefined;
+            if (user?.name) {
+                userName = user.name;
+                console.log(`   ✅ 从 users 表找到用户名: ${userName}`);
+            } else {
+                const member = db.prepare(`SELECT user_name FROM meeting_members WHERE user_id = ? LIMIT 1`).get(userId) as { user_name: string } | undefined;
+                if (member?.user_name) {
+                    userName = member.user_name;
+                    console.log(`   ✅ 从 meeting_members 表找到用户名: ${userName}`);
+                } else {
+                    // 使用 userId 前 8 位作为显示名
+                    userName = userId.substring(0, 8);
+                    console.log(`   ⚠️ 未找到用户名，使用 userId 前缀: ${userName}`);
+                }
+            }
+        }
+
         db.prepare(`
-            INSERT INTO recordings (id, meeting_id, task_id, started_by, started_at, status, visibility, file_url, cos_file_key, title)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO recordings (id, meeting_id, task_id, started_by, started_at, status, visibility, file_url, cos_file_key, title, user_id, user_name, record_mode)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             recordingId,
             'file-upload',  // 系统会议 ID
@@ -183,7 +210,10 @@ router.post('/create-from-file', async (req: Request, res: Response) => {
             'host_only',
             finalFileUrl,
             cosFileKey,
-            fileName || cosFileKey
+            userName ? `${userName} 的录制` : (fileName || cosFileKey),
+            userId,
+            userName,
+            'single'        // 从文件上传的通常是单流录制
         );
 
         console.log(`   ✅ 创建录制记录: ${recordingId}`);

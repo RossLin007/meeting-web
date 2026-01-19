@@ -270,7 +270,12 @@ export function RecordingsView() {
                             <tbody>
                                 {storageFiles.map((file) => (
                                     <tr key={file.key}>
-                                        <td className={styles.fileName}>{file.name}</td>
+                                        <td className={styles.fileName}>
+                                            <div>{file.key}</div>
+                                            {file.url && (
+                                                <div className={styles.fileUrl}>{file.url}</div>
+                                            )}
+                                        </td>
                                         <td>{formatStorageDate(file.lastModified)}</td>
                                         <td>{formatFileSize(file.size)}</td>
                                         <td className={styles.fileActions}>

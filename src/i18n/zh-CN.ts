@@ -459,6 +459,9 @@ const zhCN = {
         mergeFailed: '合并转录失败',
         recordings: '个录制',
         segments: '个片段',
+        meetingTranscript: '会议完整转录',
+        participants: '位参与者',
+        loadFailed: '加载转录失败',
     },
 };
 

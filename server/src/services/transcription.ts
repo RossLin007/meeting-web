@@ -529,6 +529,195 @@ export async function updateSpeakerLabel(
     }
 }
 
+// ============ 会议级别转录合并 ============
+
+export interface MeetingTranscriptSegment {
+    userId: string;
+    userName: string;
+    beginTime: number;  // 相对于会议开始的毫秒数
+    endTime: number;
+    text: string;
+}
+
+export interface MeetingTranscript {
+    meetingId: string;
+    meetingTitle: string;
+    startTime: number;  // 会议开始时间 (unix timestamp)
+    endTime: number;    // 会议结束时间
+    participants: Array<{ userId: string; userName: string }>;
+    segments: MeetingTranscriptSegment[];
+    fullText: string;
+}
+
+/**
+ * 获取会议完整转录（合并所有单流录制）
+ */
+export async function getMeetingTranscription(meetingId: string): Promise<MeetingTranscript | null> {
+    const { getDatabase } = await import('../db');
+    const db = getDatabase();
+
+    console.log(`🔗 获取会议完整转录: ${meetingId}`);
+
+    try {
+        // 获取会议信息
+        const meeting = db.prepare(`
+            SELECT id, title, started_at, ended_at FROM meetings WHERE id = ?
+        `).get(meetingId) as {
+            id: string;
+            title: string;
+            started_at: number | null;
+            ended_at: number | null;
+        } | undefined;
+
+        if (!meeting) {
+            console.log(`   ❌ 会议不存在: ${meetingId}`);
+            return null;
+        }
+
+        // 查找该会议的所有已完成录制
+        const recordings = db.prepare(`
+            SELECT id, user_id, user_name, cos_file_key, started_at, record_mode
+            FROM recordings 
+            WHERE meeting_id = ? AND status = 'completed'
+            ORDER BY started_at ASC
+        `).all(meetingId) as Array<{
+            id: string;
+            user_id: string | null;
+            user_name: string | null;
+            cos_file_key: string | null;
+            started_at: number;
+            record_mode: string | null;
+        }>;
+
+        if (recordings.length === 0) {
+            console.log(`   ⚠️ 会议没有录制: ${meetingId}`);
+            return null;
+        }
+
+        console.log(`   📁 找到 ${recordings.length} 个录制`);
+
+        // 计算时间偏移基准（最早的录制开始时间）
+        const baseStartTime = Math.min(...recordings.map(r => r.started_at));
+        const participantsMap = new Map<string, string>();
+        const mergedSegments: MeetingTranscriptSegment[] = [];
+
+        // 获取每个录制的转录结果并合并
+        for (const recording of recordings) {
+            // 计算该录制相对于基准的时间偏移（毫秒）
+            const timeOffset = (recording.started_at - baseStartTime) * 1000;
+
+            // 获取用户信息
+            let userId = recording.user_id || 'unknown';
+            let userName = recording.user_name || userId.substring(0, 8);
+
+            // 如果没有 user_id，尝试从文件名解析
+            if (!recording.user_id && recording.cos_file_key) {
+                const { parseUserIdFromFilename } = await import('../utils/cos');
+                const parsedId = parseUserIdFromFilename(recording.cos_file_key);
+                if (parsedId) {
+                    userId = parsedId;
+                    // 查找用户名
+                    const user = db.prepare(`SELECT name FROM users WHERE id = ?`).get(userId) as { name: string } | undefined;
+                    if (user?.name) {
+                        userName = user.name;
+                    } else {
+                        const member = db.prepare(`SELECT user_name FROM meeting_members WHERE user_id = ? LIMIT 1`).get(userId) as { user_name: string } | undefined;
+                        if (member?.user_name) {
+                            userName = member.user_name;
+                        } else {
+                            userName = userId.substring(0, 8);
+                        }
+                    }
+                }
+            }
+
+            // 记录参与者
+            if (!participantsMap.has(userId)) {
+                participantsMap.set(userId, userName);
+            }
+
+            // 获取转录记录
+            const transcription = db.prepare(`
+                SELECT id FROM transcriptions 
+                WHERE recording_id = ? AND status = 'completed'
+                ORDER BY created_at DESC LIMIT 1
+            `).get(recording.id) as { id: string } | undefined;
+
+            if (!transcription) {
+                console.log(`   ⚠️ 录制 ${recording.id} 没有完成的转录`);
+                continue;
+            }
+
+            // 获取转录片段
+            const segments = db.prepare(`
+                SELECT speaker_id, begin_time, end_time, text
+                FROM transcription_segments
+                WHERE transcription_id = ?
+                ORDER BY begin_time ASC
+            `).all(transcription.id) as Array<{
+                speaker_id: number;
+                begin_time: number;
+                end_time: number;
+                text: string;
+            }>;
+
+            // 将片段加入合并列表，应用时间偏移
+            for (const seg of segments) {
+                mergedSegments.push({
+                    userId,
+                    userName,
+                    beginTime: seg.begin_time + timeOffset,
+                    endTime: seg.end_time + timeOffset,
+                    text: seg.text,
+                });
+            }
+
+            console.log(`   ✅ ${userName}: ${segments.length} 个片段 (偏移 ${timeOffset}ms)`);
+        }
+
+        // 按时间顺序排序
+        mergedSegments.sort((a, b) => a.beginTime - b.beginTime);
+
+        console.log(`   📝 合并完成: ${mergedSegments.length} 个片段`);
+
+        // 格式化时间辅助函数
+        const formatTime = (ms: number): string => {
+            const totalSeconds = Math.floor(ms / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            if (hours > 0) {
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        };
+
+        // 生成完整文本
+        const fullText = mergedSegments
+            .map(seg => `[${formatTime(seg.beginTime)}] ${seg.userName}: ${seg.text}`)
+            .join('\n');
+
+        // 构建参与者列表
+        const participants = Array.from(participantsMap.entries()).map(([userId, userName]) => ({
+            userId,
+            userName,
+        }));
+
+        return {
+            meetingId,
+            meetingTitle: meeting.title,
+            startTime: meeting.started_at || baseStartTime,
+            endTime: meeting.ended_at || Math.floor(Date.now() / 1000),
+            participants,
+            segments: mergedSegments,
+            fullText,
+        };
+    } catch (error) {
+        console.error('❌ 获取会议转录失败:', error);
+        throw error;
+    }
+}
+
 export default {
     submitTranscription,
     queryTranscriptionStatus,
@@ -539,4 +728,5 @@ export default {
     getTranscriptionDetails,
     getTranscriptionByRecordingId,
     updateSpeakerLabel,
+    getMeetingTranscription,
 };
