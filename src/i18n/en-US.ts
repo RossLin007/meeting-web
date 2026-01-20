@@ -463,6 +463,27 @@ const enUS = {
         participants: 'participants',
         loadFailed: 'Failed to load transcription',
     },
+
+    transcriptions: {
+        title: 'Meeting Transcriptions',
+        empty: 'No transcriptions yet',
+        emptyHint: 'Transcriptions will appear here after meetings end',
+        completed: 'Completed',
+        processing: 'Processing',
+        partial: 'Partial',
+        none: 'None',
+        failed: 'Failed',
+        duration: 'Duration',
+        recordings: 'Recordings',
+        viewDetails: 'View Details',
+        downloadTxt: 'Download TXT',
+        downloadFailed: 'Download failed',
+        startTranscription: 'Start Transcription',
+        triggerSuccess: 'Transcription task started',
+        triggerFailed: 'Failed to start transcription',
+        retranscribe: 'Re-transcribe',
+        retranscribeHint: 'Re-scan recordings and transcribe again',
+    },
 };
 
 export default enUS;

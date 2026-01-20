@@ -1,0 +1,26 @@
+{
+    "name": "meeting-transcription-worker",
+    "version": "1.0.0",
+    "description": "独立转录 Worker 服务 - 智会会议系统",
+    "main": "dist/index.js",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js"
+    },
+    "dependencies": {
+        "better-sqlite3": "^11.6.0",
+        "cos-nodejs-sdk-v5": "^2.14.6",
+        "dotenv": "^16.4.7",
+        "pino": "^9.6.0",
+        "pino-pretty": "^13.0.0",
+        "uuid": "^11.0.3"
+    },
+    "devDependencies": {
+        "@types/better-sqlite3": "^7.6.12",
+        "@types/node": "^22.10.2",
+        "@types/uuid": "^10.0.0",
+        "tsx": "^4.19.2",
+        "typescript": "^5.7.2"
+    }
+}

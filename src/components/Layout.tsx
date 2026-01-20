@@ -9,7 +9,7 @@ import { UserSettingsModal } from '@/components/user/UserSettingsModal';
 import { Button, Modal } from '@/components/common';
 import {
     HomeIcon, CalendarIcon, UsersIcon, SettingsIcon, VideoIcon,
-    LogoutIcon, FilmIcon
+    LogoutIcon, FilmIcon, TranscriptIcon
 } from '@/components/icons';
 import { useState, useEffect } from 'react';
 import styles from './Layout.module.css';
@@ -38,6 +38,7 @@ export function Layout({ children, title }: LayoutProps) {
         if (path === '/') return 'home';
         if (path === '/meetings') return 'meetings';
         if (path === '/storage') return 'storage';
+        if (path === '/transcriptions') return 'transcriptions';
         if (path === '/contacts') return 'contacts';
         return 'home';
     };
@@ -126,6 +127,13 @@ export function Layout({ children, title }: LayoutProps) {
                     >
                         <FilmIcon />
                         <span>{t('home.myRecordings')}</span>
+                    </button>
+                    <button
+                        className={`${styles.navItem} ${activeNav === 'transcriptions' ? styles.active : ''}`}
+                        onClick={() => navigate('/transcriptions')}
+                    >
+                        <TranscriptIcon />
+                        <span>{t('transcriptions.title')}</span>
                     </button>
                     <button
                         className={`${styles.navItem} ${activeNav === 'contacts' ? styles.active : ''}`}

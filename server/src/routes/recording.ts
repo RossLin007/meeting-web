@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { generateUserSig } from '../utils/userSig';
 import recordingService from '../services/recording';
 import { getDatabase } from '../db';
-import { getFileUrl, parseUserIdFromFilename } from '../utils/cos';
+import { getFileUrl, parseUserIdFromFilename, listFiles } from '../utils/cos';
 
 const router = Router();
 
@@ -704,6 +704,136 @@ router.put('/:id/status', async (req: Request, res: Response) => {
         });
     } catch (error) {
         console.error('Update recording status error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Internal server error',
+        });
+    }
+});
+
+/**
+ * 扫描 COS 并关联缺失文件的录制记录
+ * POST /api/recording/scan-and-link
+ * 
+ * 用于修复那些 cos_file_key 为空的录制记录
+ */
+router.post('/scan-and-link', async (req: Request, res: Response) => {
+    console.log('');
+    console.log('🔍 [POST /api/recording/scan-and-link] 扫描并关联录制文件');
+
+    try {
+        const db = getDatabase();
+
+        // 找出所有缺少 cos_file_key 的 completed 录制
+        const recordingsWithoutFiles = db.prepare(`
+            SELECT id, meeting_id, task_id, record_mode, title
+            FROM recordings
+            WHERE status = 'completed' AND (cos_file_key IS NULL OR cos_file_key = '')
+        `).all() as Array<{
+            id: string;
+            meeting_id: string;
+            task_id: string | null;
+            record_mode: string | null;
+            title: string | null;
+        }>;
+
+        console.log(`   📋 找到 ${recordingsWithoutFiles.length} 条缺少文件的录制`);
+
+        let linked = 0;
+        let notFound = 0;
+
+        for (const recording of recordingsWithoutFiles) {
+            // 构建预期的 COS 前缀
+            const prefix = `meeting/room_${recording.meeting_id}/${recording.task_id || ''}`;
+            console.log(`   🔍 扫描: ${prefix}`);
+
+            try {
+                const files = await listFiles(prefix);
+
+                // 优先找 .mp4 文件
+                let targetFile = files.find(f => f.key.endsWith('.mp4'));
+                if (!targetFile) {
+                    targetFile = files.find(f => f.key.endsWith('.m3u8'));
+                }
+
+                if (targetFile) {
+                    // 更新录制记录
+                    db.prepare(`
+                        UPDATE recordings
+                        SET cos_file_key = ?
+                        WHERE id = ?
+                    `).run(targetFile.key, recording.id);
+
+                    console.log(`   ✅ 已关联: ${recording.id} -> ${targetFile.key}`);
+                    linked++;
+                } else {
+                    console.log(`   ⚠️ 未找到文件: ${recording.id}`);
+                    notFound++;
+                }
+            } catch (err) {
+                console.error(`   ❌ 扫描失败 ${prefix}:`, err);
+                notFound++;
+            }
+        }
+
+        return res.json({
+            success: true,
+            message: `扫描完成。已关联 ${linked} 条，未找到 ${notFound} 条`,
+            linked,
+            notFound,
+            total: recordingsWithoutFiles.length,
+        });
+    } catch (error) {
+        console.error('Scan and link error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Internal server error',
+        });
+    }
+});
+
+/**
+ * 手动设置录制的 COS 文件 Key
+ * PUT /api/recording/:id/cos-file-key
+ */
+router.put('/:id/cos-file-key', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { cosFileKey } = req.body;
+
+        if (!cosFileKey) {
+            return res.status(400).json({
+                success: false,
+                error: 'cosFileKey is required',
+            });
+        }
+
+        const db = getDatabase();
+
+        // 检查录制是否存在
+        const recording = db.prepare('SELECT id FROM recordings WHERE id = ?').get(id);
+        if (!recording) {
+            return res.status(404).json({
+                success: false,
+                error: 'Recording not found',
+            });
+        }
+
+        // 更新 cos_file_key
+        db.prepare(`
+            UPDATE recordings
+            SET cos_file_key = ?
+            WHERE id = ?
+        `).run(cosFileKey, id);
+
+        console.log(`✅ 手动设置 cos_file_key: ${id} -> ${cosFileKey}`);
+
+        return res.json({
+            success: true,
+            message: 'COS file key updated',
+        });
+    } catch (error) {
+        console.error('Update cos file key error:', error);
         return res.status(500).json({
             success: false,
             error: error instanceof Error ? error.message : 'Internal server error',

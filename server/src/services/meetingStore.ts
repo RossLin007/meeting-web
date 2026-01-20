@@ -276,7 +276,7 @@ export const joinMeeting = (params: {
 /**
  * 离开会议
  */
-export const leaveMeeting = (meetingId: string, userId: string): void => {
+export const leaveMeeting = async (meetingId: string, userId: string): Promise<void> => {
     const now = Math.floor(Date.now() / 1000);
     const stmt = db.prepare(`
         UPDATE meeting_members 
@@ -293,6 +293,18 @@ export const leaveMeeting = (meetingId: string, userId: string): void => {
         // 如果没有人在线，结束会议
         updateMeetingStatus(meetingId, 'ended');
         logMeetingEvent(meetingId, userId, 'meeting.ended');
+
+        // 自动添加转录任务（直接创建数据库记录，Worker 服务会轮询处理）
+        try {
+            const stmt = db.prepare(`
+                INSERT OR IGNORE INTO transcription_tasks (meeting_id, status, created_at)
+                VALUES (?, 'pending', strftime('%s', 'now'))
+            `);
+            stmt.run(meetingId);
+            console.log(`📝 已为会议 ${meetingId} 添加转录任务`);
+        } catch (error) {
+            console.error(`⚠️ 添加转录任务失败:`, error);
+        }
     }
 };
 

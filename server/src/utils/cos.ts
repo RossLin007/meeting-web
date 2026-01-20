@@ -99,9 +99,73 @@ export function isSingleStreamFile(fileName: string): boolean {
     return fileName.includes('__UserId_s_') && fileName.includes('__UserId_e_');
 }
 
+/**
+ * 列出指定前缀下的所有文件
+ * @param prefix 文件前缀路径
+ * @param maxKeys 最大返回数量
+ */
+export async function listFiles(prefix: string, maxKeys: number = 1000): Promise<Array<{
+    key: string;
+    size: number;
+    lastModified: string;
+}>> {
+    return new Promise((resolve, reject) => {
+        const cleanPrefix = prefix.startsWith('/') ? prefix.slice(1) : prefix;
+
+        cos.getBucket({
+            Bucket: BUCKET,
+            Region: REGION,
+            Prefix: cleanPrefix,
+            MaxKeys: maxKeys,
+        }, (err, data) => {
+            if (err) {
+                console.error('❌ 列出 COS 文件失败:', err);
+                reject(err);
+            } else {
+                const files = (data.Contents || []).map(item => ({
+                    key: item.Key,
+                    size: parseInt(item.Size, 10),
+                    lastModified: item.LastModified,
+                }));
+                resolve(files);
+            }
+        });
+    });
+}
+
+/**
+ * 获取文件内容（文本）
+ * @param key 文件路径 (Key)
+ * @returns 文件内容字符串，失败返回 null
+ */
+export async function getFileContent(key: string): Promise<string | null> {
+    return new Promise((resolve) => {
+        const cleanKey = key.startsWith('/') ? key.slice(1) : key;
+
+        cos.getObject({
+            Bucket: BUCKET,
+            Region: REGION,
+            Key: cleanKey,
+        }, (err, data) => {
+            if (err) {
+                console.error('❌ 获取 COS 文件内容失败:', err);
+                resolve(null);
+            } else {
+                // data.Body 可能是 Buffer 或 string
+                const content = data.Body instanceof Buffer
+                    ? data.Body.toString('utf-8')
+                    : String(data.Body);
+                resolve(content);
+            }
+        });
+    });
+}
+
 export default {
     getFileUrl,
     checkFileExists,
     parseUserIdFromFilename,
     isSingleStreamFile,
+    listFiles,
+    getFileContent,
 };

@@ -596,15 +596,35 @@ export async function getMeetingTranscription(meetingId: string): Promise<Meetin
 
         console.log(`   📁 找到 ${recordings.length} 个录制`);
 
-        // 计算时间偏移基准（最早的录制开始时间）
-        const baseStartTime = Math.min(...recordings.map(r => r.started_at));
+        // 使用 m3u8 精确时间戳计算时间偏移
+        const { getM3u8StartTime } = await import('../utils/m3u8Parser');
+
+        // 获取每个录制的精确开始时间
+        const recordingsWithPreciseTime = await Promise.all(
+            recordings.map(async (r) => {
+                let preciseStartTime = 0;
+                if (r.cos_file_key) {
+                    preciseStartTime = await getM3u8StartTime(r.cos_file_key);
+                }
+                // 如果无法从 m3u8 获取，回退到数据库记录的时间（转换为毫秒）
+                if (preciseStartTime === 0) {
+                    preciseStartTime = r.started_at * 1000;
+                }
+                return { ...r, preciseStartTime };
+            })
+        );
+
+        // 计算时间偏移基准（最早的精确开始时间）
+        const baseStartTime = Math.min(...recordingsWithPreciseTime.map(r => r.preciseStartTime));
         const participantsMap = new Map<string, string>();
         const mergedSegments: MeetingTranscriptSegment[] = [];
 
+        console.log(`   ⏱️ 使用 m3u8 精确时间戳，基准时间: ${baseStartTime}ms`);
+
         // 获取每个录制的转录结果并合并
-        for (const recording of recordings) {
-            // 计算该录制相对于基准的时间偏移（毫秒）
-            const timeOffset = (recording.started_at - baseStartTime) * 1000;
+        for (const recording of recordingsWithPreciseTime) {
+            // 使用精确时间戳计算偏移（毫秒）
+            const timeOffset = recording.preciseStartTime - baseStartTime;
 
             // 获取用户信息
             let userId = recording.user_id || 'unknown';

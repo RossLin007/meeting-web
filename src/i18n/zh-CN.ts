@@ -463,6 +463,27 @@ const zhCN = {
         participants: '位参与者',
         loadFailed: '加载转录失败',
     },
+
+    transcriptions: {
+        title: '会议转录',
+        empty: '暂无转录记录',
+        emptyHint: '会议结束后，转录将自动显示在这里',
+        completed: '已完成',
+        processing: '处理中',
+        partial: '部分完成',
+        none: '未转录',
+        failed: '转录失败',
+        duration: '时长',
+        recordings: '录制数',
+        viewDetails: '查看详情',
+        downloadTxt: '下载 TXT',
+        downloadFailed: '下载失败',
+        startTranscription: '开始转录',
+        triggerSuccess: '转录任务已启动',
+        triggerFailed: '启动转录失败',
+        retranscribe: '重新转录',
+        retranscribeHint: '重新扫描录制文件并转录',
+    },
 };
 
 export default zhCN;

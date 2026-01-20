@@ -353,6 +353,33 @@ const runMigrations = (): void => {
         `);
 
         console.log('✅ 转录表已就绪 (transcriptions, transcription_segments, speaker_labels)');
+
+        // 迁移 8: 创建转录任务队列表（用于自动转录触发）
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS transcription_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                meeting_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'failed')),
+                error_message TEXT,
+                retry_count INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                started_at INTEGER,
+                completed_at INTEGER,
+                FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+            )
+        `);
+
+        db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_transcription_tasks_status 
+            ON transcription_tasks(status, created_at)
+        `);
+
+        db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_transcription_tasks_meeting 
+            ON transcription_tasks(meeting_id)
+        `);
+
+        console.log('✅ 转录任务队列表已就绪 (transcription_tasks)');
     } catch (error) {
         console.error('❌ 数据库迁移失败:', error);
         throw error;

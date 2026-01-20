@@ -13,6 +13,7 @@ import { Contacts } from '@/pages/Contacts';
 import { Meeting } from '@/pages/Meeting';
 import { PreJoin } from '@/pages/PreJoin';
 import { Recordings } from '@/pages/Recordings';
+import { Transcriptions } from '@/pages/Transcriptions';
 import { Login } from '@/pages/Login';
 
 import '@/i18n';
@@ -65,6 +66,14 @@ function App() {
                   element={
                     <PrivateRoute>
                       <Recordings />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/transcriptions"
+                  element={
+                    <PrivateRoute>
+                      <Transcriptions />
                     </PrivateRoute>
                   }
                 />

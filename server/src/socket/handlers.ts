@@ -1002,6 +1002,17 @@ export function registerHandlers(io: Server, socket: Socket): void {
         roomStates.delete(meetingId);
 
         console.log(`🛑 ${userId} 结束了会议 ${meetingId}`);
+
+        // 自动添加转录任务（直接创建数据库记录，Worker 服务会轮询处理）
+        try {
+            db.prepare(`
+                INSERT OR IGNORE INTO transcription_tasks (meeting_id, status, created_at)
+                VALUES (?, 'pending', strftime('%s', 'now'))
+            `).run(meetingId);
+            console.log(`📝 已为会议 ${meetingId} 添加转录任务`);
+        } catch (error) {
+            console.error(`⚠️ 添加转录任务失败:`, error);
+        }
     });
 
     // ========== 录制控制 ==========
