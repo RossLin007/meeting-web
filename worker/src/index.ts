@@ -23,6 +23,22 @@ async function start(): Promise<void> {
         }
     }, 'Configuration loaded');
 
+    // 检查关键配置
+    const warnings: string[] = [];
+    if (!config.cosSecretId || !config.cosSecretKey) {
+        warnings.push('COS credentials missing - COS scan will fail');
+    }
+    if (!config.cosBucket) {
+        warnings.push('COS_BUCKET not set');
+    }
+    if (!config.dashscopeApiKey) {
+        warnings.push('DASHSCOPE_API_KEY not set - transcription will fail');
+    }
+
+    if (warnings.length > 0) {
+        logger.warn({ warnings }, '⚠️ Configuration warnings');
+    }
+
     // 初始化数据库连接
     getDatabase();
 

@@ -62,7 +62,7 @@ export function resetTimedOutTasks(): number {
         SET status = 'pending', 
             retry_count = retry_count + 1,
             error_message = 'Task timed out, will retry'
-        WHERE status IN ('submitting', 'polling') 
+        WHERE status = 'processing' 
           AND started_at < strftime('%s', 'now') - ?
     `).run(timeout);
 

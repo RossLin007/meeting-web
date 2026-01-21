@@ -65,14 +65,16 @@ async function pollAndSubmit(): Promise<void> {
             return;
         }
 
-        submitterLogger.info({ taskId: task.id, meetingId: task.meeting_id }, 'Found pending task');
+        submitterLogger.info({ taskId: task.id, meetingId: task.meeting_id }, '📋 Found pending task');
 
         // 标记为提交中
         db.prepare(`
             UPDATE transcription_tasks 
-            SET status = 'submitting', started_at = strftime('%s', 'now')
+            SET status = 'processing', started_at = strftime('%s', 'now')
             WHERE id = ?
         `).run(task.id);
+
+        submitterLogger.info({ taskId: task.id }, '⏳ Task status set to processing');
 
         // 处理任务
         await processTask(task.meeting_id, task.id);
@@ -91,7 +93,7 @@ async function processTask(meetingId: string, taskId: number): Promise<void> {
     const db = getDatabase();
 
     try {
-        submitterLogger.info({ meetingId }, 'Processing meeting transcription');
+        submitterLogger.info({ meetingId }, '🔄 Processing meeting transcription');
 
         // ========== 步骤 1: 扫描 COS 补充录制记录 ==========
         const prefix = `meeting/room_${meetingId}/`;
@@ -104,7 +106,7 @@ async function processTask(meetingId: string, taskId: number): Promise<void> {
         }
 
         const mp4Files = cosFiles.filter(f => f.key.endsWith('.mp4') || f.key.endsWith('_main.mp4'));
-        submitterLogger.info({ count: mp4Files.length }, 'Found MP4 files in COS');
+        submitterLogger.info({ count: mp4Files.length, prefix }, '📁 Found MP4 files in COS');
 
         // 为每个 COS 文件创建缺失的录制记录
         for (const file of mp4Files) {
@@ -138,7 +140,7 @@ async function processTask(meetingId: string, taskId: number): Promise<void> {
                 VALUES (?, ?, NULL, 'system', strftime('%s', 'now'), strftime('%s', 'now'), 'completed', 'host_only', ?, ?, ?, ?, ?, 'single')
             `).run(recordingId, meetingId, fileUrl, file.key, userName ? `${userName} 的录制` : `录制文件`, userId, userName);
 
-            submitterLogger.info({ recordingId, userName }, 'Created recording record');
+            submitterLogger.info({ recordingId, cosKey: file.key, userName }, '➕ Created new recording record');
         }
 
         // ========== 步骤 2: 获取所有录制并提交转录 ==========
@@ -158,31 +160,42 @@ async function processTask(meetingId: string, taskId: number): Promise<void> {
             throw new Error('No completed recordings found');
         }
 
-        submitterLogger.info({ count: recordings.length }, 'Found recordings to transcribe');
+        submitterLogger.info({ count: recordings.length, meetingId }, '📼 Found recordings to transcribe');
 
         // 为每个录制提交转录
         let submittedCount = 0;
+        let skippedCount = 0;
         for (const recording of recordings) {
-            const submitted = await submitRecordingTranscription(recording, meetingId);
-            if (submitted) submittedCount++;
+            const result = await submitRecordingTranscription(recording, meetingId);
+            if (result === 'submitted') submittedCount++;
+            else if (result === 'skipped') skippedCount++;
         }
 
-        // ========== 步骤 3: 更新任务状态为轮询中 ==========
+        // ========== 步骤 3: 更新任务状态和统计 ==========
+        const processingTime = Date.now() - (db.prepare(`SELECT started_at FROM transcription_tasks WHERE id = ?`).get(taskId) as { started_at: number })?.started_at * 1000 || 0;
+
         if (submittedCount > 0) {
             db.prepare(`
                 UPDATE transcription_tasks 
-                SET status = 'polling'
+                SET status = 'processing',
+                    total_recordings = ?,
+                    submitted_count = ?,
+                    skipped_count = ?
                 WHERE id = ?
-            `).run(taskId);
-            submitterLogger.info({ taskId, submittedCount }, 'Task moved to polling status');
+            `).run(recordings.length, submittedCount, skippedCount, taskId);
+            submitterLogger.info({ taskId, submittedCount, skippedCount, total: recordings.length }, '📤 Task submitted to ASR');
         } else {
             // 没有提交任何转录，直接标记完成
             db.prepare(`
                 UPDATE transcription_tasks 
-                SET status = 'completed', completed_at = strftime('%s', 'now')
+                SET status = 'completed', 
+                    completed_at = strftime('%s', 'now'),
+                    total_recordings = ?,
+                    skipped_count = ?,
+                    processing_time_ms = ?
                 WHERE id = ?
-            `).run(taskId);
-            submitterLogger.info({ taskId }, 'Task completed (no new transcriptions needed)');
+            `).run(recordings.length, skippedCount, processingTime, taskId);
+            submitterLogger.info({ taskId, skippedCount, total: recordings.length }, '✅ Task completed (no new transcriptions needed)');
         }
 
     } catch (error) {
@@ -216,7 +229,7 @@ async function processTask(meetingId: string, taskId: number): Promise<void> {
 async function submitRecordingTranscription(
     recording: { id: string; cos_file_key: string | null },
     meetingId: string
-): Promise<boolean> {
+): Promise<'submitted' | 'skipped' | 'failed'> {
     const db = getDatabase();
 
     // 检查是否已有转录
@@ -229,20 +242,32 @@ async function submitRecordingTranscription(
 
     if (existingTranscription) {
         if (existingTranscription.status === 'completed' && existingTranscription.full_text) {
-            submitterLogger.debug({ recordingId: recording.id }, 'Transcription already completed, skipping');
-            return false;
+            submitterLogger.info({
+                recordingId: recording.id,
+                transcriptionId: existingTranscription.id,
+                textLength: existingTranscription.full_text.length
+            }, '⏭️ Skipping: transcription already completed');
+            return 'skipped';
         }
-        if (existingTranscription.status === 'processing' || existingTranscription.status === 'polling') {
-            submitterLogger.debug({ recordingId: recording.id }, 'Transcription in progress, skipping');
-            return false;
+        if (existingTranscription.status === 'processing') {
+            submitterLogger.info({
+                recordingId: recording.id,
+                transcriptionId: existingTranscription.id
+            }, '⏭️ Skipping: transcription in progress');
+            return 'skipped';
         }
         // 失败或无内容的删除重试
+        submitterLogger.info({
+            recordingId: recording.id,
+            oldStatus: existingTranscription.status,
+            hasText: !!existingTranscription.full_text
+        }, '🔄 Deleting failed transcription for retry');
         db.prepare(`DELETE FROM transcriptions WHERE id = ?`).run(existingTranscription.id);
     }
 
     if (!recording.cos_file_key) {
-        submitterLogger.warn({ recordingId: recording.id }, 'No COS file, skipping');
-        return false;
+        submitterLogger.warn({ recordingId: recording.id }, '⚠️ No COS file, skipping');
+        return 'skipped';
     }
 
     // 获取文件 URL
@@ -252,23 +277,27 @@ async function submitRecordingTranscription(
     const result = await submitTranscription(fileUrl);
 
     if (!result.success || !result.taskId) {
-        throw new Error(result.error || 'Failed to submit transcription');
+        submitterLogger.error({ recordingId: recording.id, error: result.error }, '❌ Failed to submit transcription');
+        return 'failed';
     }
 
-    // 创建转录记录
+    // 创建转录记录（包含元数据）
     const transcriptionId = uuidv4();
+    const submittedAt = Math.floor(Date.now() / 1000);
+
     db.prepare(`
-        INSERT INTO transcriptions (id, recording_id, task_id, status)
-        VALUES (?, ?, ?, 'polling')
-    `).run(transcriptionId, recording.id, result.taskId);
+        INSERT INTO transcriptions (id, recording_id, task_id, status, alibaba_task_id, submitted_file_url, submitted_at)
+        VALUES (?, ?, ?, 'processing', ?, ?, ?)
+    `).run(transcriptionId, recording.id, result.taskId, result.taskId, fileUrl, submittedAt);
 
     submitterLogger.info({
         transcriptionId,
         recordingId: recording.id,
-        alibabaTaskId: result.taskId
-    }, 'Transcription submitted');
+        alibabaTaskId: result.taskId,
+        fileUrl: fileUrl.substring(0, 60) + '...'
+    }, '📤 Transcription submitted');
 
-    return true;
+    return 'submitted';
 }
 
 export default {

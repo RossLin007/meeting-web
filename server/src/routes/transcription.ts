@@ -368,7 +368,7 @@ router.get('/:id/participants', async (req: Request, res: Response) => {
 // Note: GET /merge/:meetingId 已移除 - 请使用 GET /meeting/:meetingId
 
 /**
- * 获取会议完整转录（别名，方便前端调用）
+ * 获取会议完整转录（从预合并的 meeting_transcripts 表查询）
  * GET /api/transcription/meeting/:meetingId
  */
 router.get('/meeting/:meetingId', async (req: Request, res: Response) => {
@@ -385,18 +385,84 @@ router.get('/meeting/:meetingId', async (req: Request, res: Response) => {
             });
         }
 
-        const result = await transcriptionService.getMeetingTranscription(meetingId);
+        const db = getDatabase();
 
-        if (!result) {
+        // 从预合并的表查询
+        const transcript = db.prepare(`
+            SELECT 
+                mt.id,
+                mt.meeting_id,
+                m.title as meeting_title,
+                m.started_at,
+                m.ended_at,
+                mt.full_text,
+                mt.segments_json,
+                mt.participants_json,
+                mt.total_duration_ms,
+                mt.total_word_count,
+                mt.recording_count,
+                mt.completed_count,
+                mt.failed_count,
+                mt.status,
+                mt.error_message,
+                mt.updated_at
+            FROM meeting_transcripts mt
+            JOIN meetings m ON m.id = mt.meeting_id
+            WHERE mt.meeting_id = ?
+        `).get(meetingId) as {
+            id: string;
+            meeting_id: string;
+            meeting_title: string;
+            started_at: number | null;
+            ended_at: number | null;
+            full_text: string | null;
+            segments_json: string | null;
+            participants_json: string | null;
+            total_duration_ms: number;
+            total_word_count: number;
+            recording_count: number;
+            completed_count: number;
+            failed_count: number;
+            status: string;
+            error_message: string | null;
+            updated_at: number;
+        } | undefined;
+
+        if (!transcript) {
             return res.status(404).json({
                 success: false,
                 error: 'No transcription found for this meeting',
             });
         }
 
+        // 解析 JSON 字段
+        const segments = transcript.segments_json ? JSON.parse(transcript.segments_json) : [];
+        const participants = transcript.participants_json ? JSON.parse(transcript.participants_json) : [];
+
+        console.log(`   📝 会议: ${transcript.meeting_title}`);
+        console.log(`   📊 状态: ${transcript.status}, 片段: ${segments.length}, 字数: ${transcript.total_word_count}`);
+
         return res.json({
             success: true,
-            data: result,
+            data: {
+                meetingId: transcript.meeting_id,
+                meetingTitle: transcript.meeting_title,
+                startTime: transcript.started_at ? transcript.started_at * 1000 : null,
+                endTime: transcript.ended_at,
+                fullText: transcript.full_text || '',
+                segments,
+                participants,
+                stats: {
+                    totalDurationMs: transcript.total_duration_ms,
+                    totalWordCount: transcript.total_word_count,
+                    recordingCount: transcript.recording_count,
+                    completedCount: transcript.completed_count,
+                    failedCount: transcript.failed_count,
+                },
+                status: transcript.status,
+                errorMessage: transcript.error_message,
+                updatedAt: transcript.updated_at,
+            },
         });
     } catch (error) {
         console.error('Get meeting transcription error:', error);
@@ -423,7 +489,7 @@ function formatTime(ms: number): string {
 }
 
 /**
- * 下载会议转录文本
+ * 下载会议转录文本（从预合并的 meeting_transcripts 表查询）
  * GET /api/transcription/meeting/:meetingId/download
  */
 router.get('/meeting/:meetingId/download', async (req: Request, res: Response) => {
@@ -441,8 +507,28 @@ router.get('/meeting/:meetingId/download', async (req: Request, res: Response) =
             });
         }
 
-        // 获取会议完整转录
-        const transcript = await transcriptionService.getMeetingTranscription(meetingId);
+        const db = getDatabase();
+
+        // 从预合并的表查询
+        const transcript = db.prepare(`
+            SELECT 
+                mt.full_text,
+                mt.segments_json,
+                mt.participants_json,
+                m.title as meeting_title,
+                m.started_at,
+                m.ended_at
+            FROM meeting_transcripts mt
+            JOIN meetings m ON m.id = mt.meeting_id
+            WHERE mt.meeting_id = ? AND mt.status = 'completed'
+        `).get(meetingId) as {
+            full_text: string | null;
+            segments_json: string | null;
+            participants_json: string | null;
+            meeting_title: string;
+            started_at: number | null;
+            ended_at: number | null;
+        } | undefined;
 
         if (!transcript) {
             return res.status(404).json({
@@ -451,28 +537,31 @@ router.get('/meeting/:meetingId/download', async (req: Request, res: Response) =
             });
         }
 
-        console.log(`   📝 会议: ${transcript.meetingTitle}`);
-        console.log(`   📊 片段数: ${transcript.segments.length}`);
+        const segments = transcript.segments_json ? JSON.parse(transcript.segments_json) : [];
+        const participants = transcript.participants_json ? JSON.parse(transcript.participants_json) : [];
+
+        console.log(`   📝 会议: ${transcript.meeting_title}`);
+        console.log(`   📊 片段数: ${segments.length}`);
 
         if (format === 'json') {
             // JSON 格式
             res.setHeader('Content-Type', 'application/json');
             res.setHeader('Content-Disposition', `attachment; filename="transcription_${meetingId}.json"`);
             return res.json({
-                meetingId: transcript.meetingId,
-                meetingTitle: transcript.meetingTitle,
-                startTime: transcript.startTime,
-                endTime: transcript.endTime,
-                participants: transcript.participants,
-                segments: transcript.segments,
+                meetingId,
+                meetingTitle: transcript.meeting_title,
+                startTime: transcript.started_at ? transcript.started_at * 1000 : null,
+                endTime: transcript.ended_at,
+                participants,
+                segments,
             });
         } else {
             // TXT 格式（默认）
-            let txtContent = `会议转录: ${transcript.meetingTitle}\n`;
+            let txtContent = `会议转录: ${transcript.meeting_title}\n`;
             txtContent += `会议 ID: ${meetingId}\n`;
-            txtContent += `参与者: ${transcript.participants.map(p => p.userName).join(', ')}\n`;
+            txtContent += `参与者: ${participants.map((p: { userName: string }) => p.userName).join(', ')}\n`;
             txtContent += `${'='.repeat(50)}\n\n`;
-            txtContent += transcript.fullText;
+            txtContent += transcript.full_text || '';
 
             res.setHeader('Content-Type', 'text/plain; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename="transcription_${meetingId}.txt"`);

@@ -3,8 +3,20 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-// 加载环境变量（从 web 根目录的 .env）
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// 加载环境变量（优先从 server 目录）
+const envPaths = [
+    path.resolve(__dirname, '../.env'),          // worker/.env
+    path.resolve(__dirname, '../../server/.env'), // server/.env
+    path.resolve(__dirname, '../../.env'),        // web/.env
+];
+
+for (const envPath of envPaths) {
+    const result = dotenv.config({ path: envPath });
+    if (!result.error) {
+        console.log(`📂 Loaded env from: ${envPath}`);
+        break;
+    }
+}
 
 export interface WorkerConfig {
     // 数据库

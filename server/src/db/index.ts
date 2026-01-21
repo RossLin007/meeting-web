@@ -380,6 +380,71 @@ const runMigrations = (): void => {
         `);
 
         console.log('✅ 转录任务队列表已就绪 (transcription_tasks)');
+
+        // 迁移 9: 添加转录元数据字段
+        const transcriptionColumns = db.pragma('table_info(transcriptions)') as Array<{ name: string }>;
+        const transcriptionColumnNames = new Set(transcriptionColumns.map(col => col.name));
+
+        if (!transcriptionColumnNames.has('alibaba_task_id')) {
+            console.log('🔄 运行迁移：添加转录元数据字段...');
+            // transcriptions 表添加 ASR 元数据
+            db.exec(`ALTER TABLE transcriptions ADD COLUMN alibaba_task_id TEXT`);
+            db.exec(`ALTER TABLE transcriptions ADD COLUMN submitted_file_url TEXT`);
+            db.exec(`ALTER TABLE transcriptions ADD COLUMN submitted_at INTEGER`);
+            db.exec(`ALTER TABLE transcriptions ADD COLUMN asr_duration_ms INTEGER`);
+            db.exec(`ALTER TABLE transcriptions ADD COLUMN audio_duration_ms INTEGER`);
+            db.exec(`ALTER TABLE transcriptions ADD COLUMN word_count INTEGER`);
+            console.log('✅ 迁移完成：transcriptions 表已添加 ASR 元数据字段');
+        }
+
+        // 迁移 10: 添加任务统计字段
+        const taskColumns = db.pragma('table_info(transcription_tasks)') as Array<{ name: string }>;
+        const taskColumnNames = new Set(taskColumns.map(col => col.name));
+
+        if (!taskColumnNames.has('total_recordings')) {
+            console.log('🔄 运行迁移：添加任务统计字段...');
+            // transcription_tasks 表添加统计字段
+            db.exec(`ALTER TABLE transcription_tasks ADD COLUMN total_recordings INTEGER DEFAULT 0`);
+            db.exec(`ALTER TABLE transcription_tasks ADD COLUMN submitted_count INTEGER DEFAULT 0`);
+            db.exec(`ALTER TABLE transcription_tasks ADD COLUMN completed_count INTEGER DEFAULT 0`);
+            db.exec(`ALTER TABLE transcription_tasks ADD COLUMN failed_count INTEGER DEFAULT 0`);
+            db.exec(`ALTER TABLE transcription_tasks ADD COLUMN skipped_count INTEGER DEFAULT 0`);
+            db.exec(`ALTER TABLE transcription_tasks ADD COLUMN processing_time_ms INTEGER`);
+            console.log('✅ 迁移完成：transcription_tasks 表已添加统计字段');
+        }
+
+        // 迁移 11: 创建会议级转录表（预合并结果）
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS meeting_transcripts (
+                id TEXT PRIMARY KEY,
+                meeting_id TEXT UNIQUE NOT NULL,
+                full_text TEXT,
+                segments_json TEXT,
+                participants_json TEXT,
+                total_duration_ms INTEGER DEFAULT 0,
+                total_word_count INTEGER DEFAULT 0,
+                recording_count INTEGER DEFAULT 0,
+                completed_count INTEGER DEFAULT 0,
+                failed_count INTEGER DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'failed')),
+                error_message TEXT,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+            )
+        `);
+
+        db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_meeting_transcripts_meeting 
+            ON meeting_transcripts(meeting_id)
+        `);
+
+        db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_meeting_transcripts_status 
+            ON meeting_transcripts(status)
+        `);
+
+        console.log('✅ 会议级转录表已就绪 (meeting_transcripts)');
     } catch (error) {
         console.error('❌ 数据库迁移失败:', error);
         throw error;

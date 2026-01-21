@@ -5,6 +5,7 @@ import { getDatabase } from '../db.js';
 import { config } from '../config.js';
 import { pollerLogger } from '../utils/logger.js';
 import { queryTranscriptionStatus, parseTranscriptionResult } from '../services/asr.js';
+import { mergeMeetingTranscription } from './merger.js';
 
 let pollTimer: NodeJS.Timeout | null = null;
 let isProcessing = false;
@@ -53,7 +54,7 @@ async function pollAndCheck(): Promise<void> {
         const transcriptions = db.prepare(`
             SELECT id, recording_id, task_id 
             FROM transcriptions 
-            WHERE status = 'polling' AND task_id IS NOT NULL
+            WHERE status = 'processing' AND task_id IS NOT NULL
             ORDER BY created_at ASC 
             LIMIT 10
         `).all() as Array<{ id: string; recording_id: string; task_id: string }>;
@@ -63,7 +64,7 @@ async function pollAndCheck(): Promise<void> {
             return;
         }
 
-        pollerLogger.debug({ count: transcriptions.length }, 'Checking transcription statuses');
+        pollerLogger.info({ count: transcriptions.length }, '🔍 Checking transcription statuses');
 
         for (const transcription of transcriptions) {
             await checkTranscriptionStatus(transcription);
@@ -97,12 +98,31 @@ async function checkTranscriptionStatus(transcription: {
                 const transcriptionUrl = status.results[0].transcriptionUrl;
                 const result = await parseTranscriptionResult(transcriptionUrl);
 
-                // 保存转录内容
+                // 计算音频时长（最后一个 segment 的 endTime）
+                const audioDuration = result.segments.length > 0
+                    ? Math.max(...result.segments.map(s => s.endTime))
+                    : 0;
+
+                // 计算字数
+                const wordCount = result.fullText.replace(/\s/g, '').length;
+
+                // 计算 ASR 处理时间
+                const submittedAt = db.prepare(`SELECT submitted_at FROM transcriptions WHERE id = ?`).get(transcription.id) as { submitted_at: number } | undefined;
+                const asrDuration = submittedAt?.submitted_at
+                    ? (Math.floor(Date.now() / 1000) - submittedAt.submitted_at) * 1000
+                    : null;
+
+                // 保存转录内容（包含元数据）
                 db.prepare(`
                     UPDATE transcriptions 
-                    SET full_text = ?, status = 'completed', completed_at = strftime('%s', 'now')
+                    SET full_text = ?, 
+                        status = 'completed', 
+                        completed_at = strftime('%s', 'now'),
+                        word_count = ?,
+                        audio_duration_ms = ?,
+                        asr_duration_ms = ?
                     WHERE id = ?
-                `).run(result.fullText, transcription.id);
+                `).run(result.fullText, wordCount, audioDuration, asrDuration, transcription.id);
 
                 // 保存分段
                 db.prepare(`DELETE FROM transcription_segments WHERE transcription_id = ?`).run(transcription.id);
@@ -136,9 +156,11 @@ async function checkTranscriptionStatus(transcription: {
 
                 pollerLogger.info({
                     transcriptionId: transcription.id,
-                    chars: result.fullText.length,
-                    segments: result.segments.length
-                }, 'Transcription completed');
+                    wordCount,
+                    segments: result.segments.length,
+                    audioDurationMs: audioDuration,
+                    asrDurationMs: asrDuration
+                }, '✅ Transcription completed');
             }
         } else if (status.status === 'FAILED') {
             db.prepare(`
@@ -169,11 +191,11 @@ async function checkTranscriptionStatus(transcription: {
 async function checkTaskCompletion(): Promise<void> {
     const db = getDatabase();
 
-    // 查找 polling 状态的任务
+    // 查找 processing 状态的任务
     const tasks = db.prepare(`
         SELECT DISTINCT tt.id, tt.meeting_id
         FROM transcription_tasks tt
-        WHERE tt.status = 'polling'
+        WHERE tt.status = 'processing'
     `).all() as Array<{ id: number; meeting_id: string }>;
 
     for (const task of tasks) {
@@ -187,39 +209,59 @@ async function checkTaskCompletion(): Promise<void> {
         `).all(task.meeting_id) as Array<{ id: string; transcription_status: string | null }>;
 
         // 统计状态
-        let allCompleted = true;
-        let anyFailed = false;
-        let anyPolling = false;
+        let completedCount = 0;
+        let failedCount = 0;
+        let processingCount = 0;
 
         for (const r of recordings) {
-            if (r.transcription_status === 'polling' || r.transcription_status === 'processing') {
-                anyPolling = true;
-                allCompleted = false;
+            if (r.transcription_status === 'processing') {
+                processingCount++;
             } else if (r.transcription_status === 'failed') {
-                anyFailed = true;
-            } else if (!r.transcription_status || r.transcription_status === 'pending') {
-                allCompleted = false;
+                failedCount++;
+            } else if (r.transcription_status === 'completed') {
+                completedCount++;
             }
         }
 
-        if (!anyPolling) {
-            if (allCompleted || anyFailed) {
-                // 任务完成或失败
-                const finalStatus = anyFailed && !recordings.some(r => r.transcription_status === 'completed')
-                    ? 'failed'
-                    : 'completed';
+        if (processingCount === 0 && (completedCount > 0 || failedCount > 0)) {
+            // 任务完成或失败
+            const finalStatus = completedCount === 0 && failedCount > 0 ? 'failed' : 'completed';
 
-                db.prepare(`
-                    UPDATE transcription_tasks 
-                    SET status = ?, completed_at = strftime('%s', 'now')
-                    WHERE id = ?
-                `).run(finalStatus, task.id);
+            // 计算总处理时间
+            const startedAt = db.prepare(`SELECT started_at FROM transcription_tasks WHERE id = ?`).get(task.id) as { started_at: number } | undefined;
+            const processingTime = startedAt?.started_at
+                ? (Math.floor(Date.now() / 1000) - startedAt.started_at) * 1000
+                : null;
 
-                pollerLogger.info({
-                    taskId: task.id,
-                    meetingId: task.meeting_id,
-                    status: finalStatus
-                }, 'Task completed');
+            db.prepare(`
+                UPDATE transcription_tasks 
+                SET status = ?, 
+                    completed_at = strftime('%s', 'now'),
+                    completed_count = ?,
+                    failed_count = ?,
+                    processing_time_ms = ?
+                WHERE id = ?
+            `).run(finalStatus, completedCount, failedCount, processingTime, task.id);
+
+            pollerLogger.info({
+                taskId: task.id,
+                meetingId: task.meeting_id,
+                status: finalStatus,
+                completedCount,
+                failedCount,
+                processingTimeMs: processingTime
+            }, `🏁 Task ${finalStatus}`);
+
+            // 触发会议级转录合并
+            if (finalStatus === 'completed' && completedCount > 0) {
+                try {
+                    await mergeMeetingTranscription(task.meeting_id);
+                } catch (mergeError) {
+                    pollerLogger.error({
+                        meetingId: task.meeting_id,
+                        error: mergeError instanceof Error ? mergeError.message : 'Unknown error'
+                    }, '❌ Meeting merge failed');
+                }
             }
         }
     }

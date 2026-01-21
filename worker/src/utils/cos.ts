@@ -33,7 +33,13 @@ export async function listFiles(prefix: string): Promise<Array<{ key: string }>>
             MaxKeys: 1000,
         }, (err, data) => {
             if (err) {
-                cosLogger.error({ error: err.message, prefix }, 'Failed to list COS files');
+                cosLogger.error({
+                    error: err.message || String(err),
+                    code: (err as { code?: string }).code,
+                    bucket: config.cosBucket,
+                    region: config.cosRegion,
+                    prefix
+                }, 'Failed to list COS files');
                 reject(err);
                 return;
             }
