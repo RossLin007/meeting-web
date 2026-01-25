@@ -26,55 +26,87 @@ interface Participant {
 
 /**
  * 合并会议的所有转录
+ * 
+ * @param roomId 会议室 ID
+ * @param trtcTaskId TRTC 录制任务 ID（可选，用于过滤特定录制会话）
  */
-export async function mergeMeetingTranscription(meetingId: string): Promise<void> {
+export async function mergeMeetingTranscription(roomId: string, trtcTaskId: string | null = null): Promise<void> {
     const db = getDatabase();
 
-    mergerLogger.info({ meetingId }, '🔀 Starting meeting transcription merge');
+    mergerLogger.info({ roomId, trtcTaskId }, '🔀 Starting transcription merge');
 
     try {
-        // 获取会议信息
+        // 获取会议信息（向后兼容）
         const meeting = db.prepare(`
             SELECT id, title, started_at, ended_at FROM meetings WHERE id = ?
-        `).get(meetingId) as {
+        `).get(roomId) as {
             id: string;
             title: string;
             started_at: number | null;
             ended_at: number | null;
         } | undefined;
 
-        if (!meeting) {
-            throw new Error(`Meeting not found: ${meetingId}`);
-        }
+        // 会议信息可能不存在（纯 COS 模式）
+        const meetingTitle = meeting?.title || `录制会话 ${trtcTaskId || roomId}`;
 
         // 获取所有已完成的录制及其转录
-        const recordings = db.prepare(`
-            SELECT 
-                r.id as recording_id,
-                r.user_id,
-                r.user_name,
-                r.cos_file_key,
-                r.started_at,
-                t.id as transcription_id,
-                t.status as transcription_status,
-                t.full_text
-            FROM recordings r
-            LEFT JOIN transcriptions t ON t.recording_id = r.id AND t.status = 'completed'
-            WHERE r.meeting_id = ? AND r.status = 'completed'
-            ORDER BY r.started_at ASC
-        `).all(meetingId) as Array<{
-            recording_id: string;
-            user_id: string | null;
-            user_name: string | null;
-            cos_file_key: string | null;
-            started_at: number;
-            transcription_id: string | null;
-            transcription_status: string | null;
-            full_text: string | null;
-        }>;
+        // 如果指定了 trtcTaskId，则只获取对应 COS 路径的录制
+        let recordings;
+        if (trtcTaskId) {
+            recordings = db.prepare(`
+                SELECT 
+                    r.id as recording_id,
+                    r.user_id,
+                    r.user_name,
+                    r.cos_file_key,
+                    r.started_at,
+                    t.id as transcription_id,
+                    t.status as transcription_status,
+                    t.full_text
+                FROM recordings r
+                LEFT JOIN transcriptions t ON t.recording_id = r.id AND t.status = 'completed'
+                WHERE r.meeting_id = ? AND r.status = 'completed'
+                AND r.cos_file_key LIKE ?
+                ORDER BY r.started_at ASC
+            `).all(roomId, `%/${trtcTaskId}/%`) as Array<{
+                recording_id: string;
+                user_id: string | null;
+                user_name: string | null;
+                cos_file_key: string | null;
+                started_at: number;
+                transcription_id: string | null;
+                transcription_status: string | null;
+                full_text: string | null;
+            }>;
+        } else {
+            recordings = db.prepare(`
+                SELECT 
+                    r.id as recording_id,
+                    r.user_id,
+                    r.user_name,
+                    r.cos_file_key,
+                    r.started_at,
+                    t.id as transcription_id,
+                    t.status as transcription_status,
+                    t.full_text
+                FROM recordings r
+                LEFT JOIN transcriptions t ON t.recording_id = r.id AND t.status = 'completed'
+                WHERE r.meeting_id = ? AND r.status = 'completed'
+                ORDER BY r.started_at ASC
+            `).all(roomId) as Array<{
+                recording_id: string;
+                user_id: string | null;
+                user_name: string | null;
+                cos_file_key: string | null;
+                started_at: number;
+                transcription_id: string | null;
+                transcription_status: string | null;
+                full_text: string | null;
+            }>;
+        }
 
         if (recordings.length === 0) {
-            throw new Error('No recordings found for meeting');
+            throw new Error('No recordings found for merge');
         }
 
         // 统计
@@ -204,10 +236,18 @@ export async function mergeMeetingTranscription(meetingId: string): Promise<void
             : 0;
         const totalWordCount = fullText.replace(/\s/g, '').length;
 
-        // 保存或更新会议级转录
-        const existingTranscript = db.prepare(`
-            SELECT id FROM meeting_transcripts WHERE meeting_id = ?
-        `).get(meetingId) as { id: string } | undefined;
+        // 保存或更新转录记录
+        // 使用 room_id + trtc_task_id 作为唯一标识
+        let existingTranscript;
+        if (trtcTaskId) {
+            existingTranscript = db.prepare(`
+                SELECT id FROM meeting_transcripts WHERE room_id = ? AND trtc_task_id = ?
+            `).get(roomId, trtcTaskId) as { id: string } | undefined;
+        } else {
+            existingTranscript = db.prepare(`
+                SELECT id FROM meeting_transcripts WHERE meeting_id = ?
+            `).get(roomId) as { id: string } | undefined;
+        }
 
         if (existingTranscript) {
             // 更新
@@ -221,6 +261,8 @@ export async function mergeMeetingTranscription(meetingId: string): Promise<void
                     recording_count = ?,
                     completed_count = ?,
                     failed_count = ?,
+                    room_id = ?,
+                    trtc_task_id = ?,
                     status = 'completed',
                     updated_at = strftime('%s', 'now')
                 WHERE id = ?
@@ -233,6 +275,8 @@ export async function mergeMeetingTranscription(meetingId: string): Promise<void
                 totalRecordings,
                 completedTranscriptions,
                 failedOrPending,
+                roomId,
+                trtcTaskId,
                 existingTranscript.id
             );
         } else {
@@ -240,13 +284,15 @@ export async function mergeMeetingTranscription(meetingId: string): Promise<void
             const transcriptId = uuidv4();
             db.prepare(`
                 INSERT INTO meeting_transcripts (
-                    id, meeting_id, full_text, segments_json, participants_json,
+                    id, meeting_id, room_id, trtc_task_id, full_text, segments_json, participants_json,
                     total_duration_ms, total_word_count, recording_count,
                     completed_count, failed_count, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')
             `).run(
                 transcriptId,
-                meetingId,
+                roomId,
+                roomId,
+                trtcTaskId,
                 fullText,
                 JSON.stringify(mergedSegments),
                 JSON.stringify(participants),
@@ -259,12 +305,13 @@ export async function mergeMeetingTranscription(meetingId: string): Promise<void
         }
 
         mergerLogger.info({
-            meetingId,
+            roomId,
+            trtcTaskId,
             segments: mergedSegments.length,
             participants: participants.length,
             wordCount: totalWordCount,
             durationMs: totalDuration
-        }, '✅ Meeting transcription merged successfully');
+        }, '✅ Transcription merged successfully');
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';

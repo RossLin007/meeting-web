@@ -94,3 +94,22 @@ export function parseUserIdFromFilename(filename: string): string | null {
     }
     return null;
 }
+
+/**
+ * 从 COS 文件路径解析 roomId 和 trtcTaskId
+ * 路径格式: meeting/room_{roomId}/{trtcTaskId}/{filename}
+ * 
+ * @param cosKey COS 文件的完整路径
+ * @returns { roomId, trtcTaskId } 或 null
+ */
+export function parseCosPath(cosKey: string): { roomId: string; trtcTaskId: string } | null {
+    // 匹配格式: meeting/room_{roomId}/{trtcTaskId}/...
+    const match = cosKey.match(/^meeting\/room_(\d+)\/([^/]+)\//);
+    if (match && match[1] && match[2]) {
+        return {
+            roomId: match[1],
+            trtcTaskId: match[2],
+        };
+    }
+    return null;
+}

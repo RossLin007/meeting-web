@@ -1,6 +1,14 @@
 
+项目名称 trans-worker
 ## 背景
 meeting会议系统， 每次会议后腾讯音视频系统trtc engine会生成一些列的录制文件。
+
+
+## 数据大致流程
+- 腾讯音视频后台 会议云录制完成，回调 trans-worker api，收到录制完成请求
+- trans-worker 接收到录制完成请求后，使用阿里 asr 启动转录
+- 转录完成后，将转录结果存储到数据库中
+- 所有的都换成，执行回调请求，通知前端转录完成
 
 
 ## 转录文件示例
@@ -173,9 +181,103 @@ cos的路径在可以 .env文件中找到配置
 
 
 ### 技术方案
-会议系统，结束会议，需要触发转录任务（记录在redis中）
+会议系统，结束会议，需要触发转录任务
 后台有一个worker，会定期检查数据库中的转录任务，如果有任务，就去转录，转录完成后，将结果存储到数据库中，并更新数据库中的任务状态。
 
 重点！！！： 转录结果文件中，必须保证真实的时序，说话人需要关联会议系统中的真实人名
 重点！！！： 转录结果文件中，必须保证真实的时序，说话人需要关联会议系统中的真实人名
 重点！！！： 转录结果文件中，必须保证真实的时序，说话人需要关联会议系统中的真实人名
+
+
+## 资源
+### 腾讯云 COS 配置
+COS_SECRET_ID=IKIDdn8MK9mESSGqEPN8fz62oQp370jKm5FG
+COS_SECRET_KEY=udBcvAIH6lSI2ZtGVu9D6lpr2JUUeifS
+COS_BUCKET=xiaofan-1395107881
+COS_REGION=ap-hongkong
+
+### 阿里云 DashScope API
+DASHSCOPE_API_KEY=sk-4d3662a5490f4bceaf404fe8befc2d82
+
+## trtc 腾讯音视频 控制台，云录制完成后回调结果
+
+ 录制记录已更新: D0e6x89Rsp-esui8b4iOs3gqSzfJsasfAt5ItrFuFf1CadUFnZT7EsBMcwRCGY6m5ECaEoW4PboiqfSZBAA.
+✅ 录制已停止: D0e6x89Rsp-esui8b4iOs3gqSzfJsasfAt5ItrFuFf1CadUFnZT7EsBMcwRCGY6m5ECaEoW4PboiqfSZBAA.
+🛑 4c993597-4210-4796-bd2d-990f7b52b1da 结束了会议 3369810761
+📝 已为会议 3369810761 添加转录任务
+
+📞 [POST /api/recording/callback] 收到腾讯云录制回调
+   请求体: {
+  "EventGroupId": 3,
+  "EventType": 305,
+  "CallbackTs": 1768960945429,
+  "EventInfo": {
+    "RoomId": "3369810761",
+    "EventTs": 1768960945,
+    "EventMsTs": 1768960945384,
+    "UserId": "recorder_3369810761_1768960834912",
+    "TaskId": "D0e6x89Rsp-esui8b4iOs3gqSzfJsasfAt5ItrFuFf1CadUFnZT7EsBMcwRCGY6m5ECaEoW4PboiqfSZBAA.",
+    "Payload": {
+      "Status": 0
+    }
+  }
+}
+   📋 事件类型: 305
+   🏠 房间: undefined
+   👤 用户: undefined
+   📝 任务: undefined
+
+📞 [POST /api/recording/callback] 收到腾讯云录制回调
+   请求体: {
+  "EventGroupId": 3,
+  "EventType": 302,
+  "CallbackTs": 1768960945393,
+  "EventInfo": {
+    "RoomId": "3369810761",
+    "EventTs": "1768960945",
+    "EventMsTs": 1768960945351,
+    "UserId": "recorder_3369810761_1768960834912",
+    "TaskId": "D0e6x89Rsp-esui8b4iOs3gqSzfJsasfAt5ItrFuFf1CadUFnZT7EsBMcwRCGY6m5ECaEoW4PboiqfSZBAA.",
+    "Payload": {
+      "LeaveCode": 0
+    }
+  }
+}
+   📋 事件类型: 302
+   🏠 房间: undefined
+   👤 用户: undefined
+   📝 任务: undefined
+
+📞 [POST /api/recording/callback] 收到腾讯云录制回调
+   请求体: {
+  "EventGroupId": 3,
+  "EventType": 310,
+  "CallbackTs": 1768960948018,
+  "EventInfo": {
+    "RoomId": "3369810761",
+    "EventTs": 1768960947,
+    "EventMsTs": 1768960947971,
+    "UserId": "recorder_3369810761_1768960834912",
+    "TaskId": "D0e6x89Rsp-esui8b4iOs3gqSzfJsasfAt5ItrFuFf1CadUFnZT7EsBMcwRCGY6m5ECaEoW4PboiqfSZBAA.",
+    "Payload": {
+      "Status": 0,
+      "FileList": [
+        "20032332_3369810761__UserId_s_NGM5OTM1OTctNDIxMC00Nzk2LWJkMmQtOTkwZjdiNTJiMWRh__UserId_e_main.mp4"
+      ],
+      "FileMessage": [
+        {
+          "FileName": "20032332_3369810761__UserId_s_NGM5OTM1OTctNDIxMC00Nzk2LWJkMmQtOTkwZjdiNTJiMWRh__UserId_e_main.mp4",
+          "UserId": "4c993597-4210-4796-bd2d-990f7b52b1da",
+          "TrackType": "audio_video",
+          "MediaId": "main",
+          "StartTimeStamp": 1768960840831,
+          "EndTimeStamp": 1768960944851
+        }
+      ]
+    }
+  }
+}
+   📋 事件类型: 310
+   🏠 房间: undefined
+   👤 用户: undefined
+   📝 任务: undefined

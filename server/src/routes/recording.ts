@@ -841,4 +841,138 @@ router.put('/:id/cos-file-key', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * 腾讯云录制回调
+ * POST /api/recording/callback
+ * 
+ * 云录制结束后，腾讯云会调用此接口通知录制结果
+ * 文档: https://cloud.tencent.com/document/product/647/76497
+ */
+router.post('/callback', async (req: Request, res: Response) => {
+    console.log('');
+    console.log('📞 [POST /api/recording/callback] 收到腾讯云录制回调');
+    console.log('   请求体:', JSON.stringify(req.body, null, 2));
+
+    try {
+        const {
+            EventType,        // 事件类型: 0-录制结束, 1-录制开始
+            EventGroupId,     // 事件组ID
+            CommId,           // 通话ID
+            RoomId,           // 房间ID (数字)
+            StrRoomId,        // 房间ID (字符串)
+            UserId,           // 用户ID
+            TaskId,           // 录制任务ID
+            Payload,          // 事件负载
+        } = req.body;
+
+        const roomId = StrRoomId || RoomId?.toString();
+
+        console.log(`   📋 事件类型: ${EventType === 0 ? '录制结束' : EventType === 1 ? '录制开始' : EventType}`);
+        console.log(`   🏠 房间: ${roomId}`);
+        console.log(`   👤 用户: ${UserId}`);
+        console.log(`   📝 任务: ${TaskId}`);
+
+        const db = getDatabase();
+
+        if (EventType === 0) {
+            // 录制结束事件
+            console.log('   🎬 处理录制结束事件');
+
+            // Payload 包含录制文件信息
+            const {
+                Status,           // 0-成功, 非0-失败
+                FileList,         // 文件列表
+                TotalDuration,    // 总时长 (毫秒)
+            } = Payload || {};
+
+            if (Status !== 0) {
+                console.log(`   ❌ 录制失败, Status: ${Status}`);
+                return res.json({ code: 0, message: 'Recorded failure acknowledged' });
+            }
+
+            // 遍历文件列表
+            if (FileList && Array.isArray(FileList)) {
+                for (const file of FileList) {
+                    const {
+                        FileName,     // 文件名
+                        FileId,       // 文件ID
+                        FileUrl,      // 播放地址
+                        FileSize,     // 文件大小
+                        UserId: fileUserId,  // 文件对应的用户
+                        TrackType,    // 0-audio, 1-video, 2-audio+video
+                    } = file;
+
+                    console.log(`   📁 文件: ${FileName}`);
+                    console.log(`      用户: ${fileUserId}, 类型: ${TrackType === 0 ? 'audio' : TrackType === 1 ? 'video' : 'audio+video'}`);
+                    console.log(`      URL: ${FileUrl}`);
+
+                    // 提取 COS key (从 FileUrl 或 FileName)
+                    let cosFileKey = FileName;
+                    if (FileUrl) {
+                        try {
+                            const url = new URL(FileUrl);
+                            cosFileKey = url.pathname.substring(1); // 去掉开头的 /
+                        } catch {
+                            // 使用 FileName
+                        }
+                    }
+
+                    // 查找对应的录制记录
+                    const recording = db.prepare(`
+                        SELECT id FROM recordings 
+                        WHERE meeting_id = ? AND user_id = ? AND status = 'recording'
+                        ORDER BY started_at DESC
+                        LIMIT 1
+                    `).get(roomId, fileUserId) as { id: string } | undefined;
+
+                    if (recording) {
+                        // 更新录制记录
+                        db.prepare(`
+                            UPDATE recordings 
+                            SET status = 'completed',
+                                cos_file_key = ?,
+                                file_url = ?,
+                                ended_at = strftime('%s', 'now')
+                            WHERE id = ?
+                        `).run(cosFileKey, FileUrl, recording.id);
+
+                        console.log(`   ✅ 更新录制记录: ${recording.id}`);
+                    } else {
+                        // 创建新的录制记录
+                        const recordingId = uuidv4();
+                        db.prepare(`
+                            INSERT INTO recordings (id, meeting_id, user_id, cos_file_key, file_url, status, record_mode, started_at, ended_at)
+                            VALUES (?, ?, ?, ?, ?, 'completed', 'single', strftime('%s', 'now'), strftime('%s', 'now'))
+                        `).run(recordingId, roomId, fileUserId, cosFileKey, FileUrl);
+
+                        console.log(`   ✅ 创建录制记录: ${recordingId}`);
+                    }
+                }
+            }
+
+            // 检查是否需要自动触发转录
+            // 可以在这里添加自动触发转录任务的逻辑
+            console.log(`   📝 云录制完成, 总时长: ${TotalDuration}ms`);
+
+        } else if (EventType === 1) {
+            // 录制开始事件
+            console.log('   ▶️ 处理录制开始事件');
+            // 可选：更新录制状态
+        }
+
+        // 返回成功响应 (腾讯云要求返回 code: 0)
+        return res.json({ code: 0, message: 'Callback processed successfully' });
+
+    } catch (error) {
+        console.error('Recording callback error:', error);
+        // 即使处理失败也返回成功，避免腾讯云重试
+        return res.json({
+            code: 0,
+            message: 'Callback received with error',
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
 export default router;
+

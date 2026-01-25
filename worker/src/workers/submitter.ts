@@ -4,7 +4,7 @@
 import { getDatabase } from '../db.js';
 import { config } from '../config.js';
 import { submitterLogger } from '../utils/logger.js';
-import { listFiles, getFileUrl, parseUserIdFromFilename } from '../utils/cos.js';
+import { listFiles, getFileUrl, parseUserIdFromFilename, parseCosPath } from '../utils/cos.js';
 import { submitTranscription } from '../services/asr.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -51,21 +51,32 @@ async function pollAndSubmit(): Promise<void> {
     try {
         const db = getDatabase();
 
-        // 查找待处理的任务
+        // 查找待处理的任务（包含 room_id 和 trtc_task_id）
         const task = db.prepare(`
-            SELECT id, meeting_id, retry_count 
+            SELECT id, meeting_id, room_id, trtc_task_id, retry_count 
             FROM transcription_tasks 
             WHERE status = 'pending' 
             ORDER BY created_at ASC 
             LIMIT 1
-        `).get() as { id: number; meeting_id: string; retry_count: number } | undefined;
+        `).get() as {
+            id: number;
+            meeting_id: string;
+            room_id: string | null;
+            trtc_task_id: string | null;
+            retry_count: number
+        } | undefined;
 
         if (!task) {
             isProcessing = false;
             return;
         }
 
-        submitterLogger.info({ taskId: task.id, meetingId: task.meeting_id }, '📋 Found pending task');
+        const roomId = task.room_id || task.meeting_id;
+        submitterLogger.info({
+            taskId: task.id,
+            roomId,
+            trtcTaskId: task.trtc_task_id
+        }, '📋 Found pending task');
 
         // 标记为提交中
         db.prepare(`
@@ -77,7 +88,7 @@ async function pollAndSubmit(): Promise<void> {
         submitterLogger.info({ taskId: task.id }, '⏳ Task status set to processing');
 
         // 处理任务
-        await processTask(task.meeting_id, task.id);
+        await processTask(roomId, task.trtc_task_id, task.id);
 
     } catch (error) {
         submitterLogger.error({ error }, 'Submitter poll error');
@@ -88,15 +99,23 @@ async function pollAndSubmit(): Promise<void> {
 
 /**
  * 处理单个任务：扫描 COS、创建录制记录、提交转录
+ * 
+ * @param roomId 会议室 ID
+ * @param trtcTaskId TRTC 录制任务 ID（可选，用于过滤特定录制会话）
+ * @param taskId 转录任务 ID
  */
-async function processTask(meetingId: string, taskId: number): Promise<void> {
+async function processTask(roomId: string, trtcTaskId: string | null, taskId: number): Promise<void> {
     const db = getDatabase();
 
     try {
-        submitterLogger.info({ meetingId }, '🔄 Processing meeting transcription');
+        submitterLogger.info({ roomId, trtcTaskId }, '🔄 Processing transcription task');
 
-        // ========== 步骤 1: 扫描 COS 补充录制记录 ==========
-        const prefix = `meeting/room_${meetingId}/`;
+        // ========== 步骤 1: 扫描 COS 获取录制文件 ==========
+        // 如果指定了 trtcTaskId，则只扫描该任务的文件
+        const prefix = trtcTaskId
+            ? `meeting/room_${roomId}/${trtcTaskId}/`
+            : `meeting/room_${roomId}/`;
+
         let cosFiles: Array<{ key: string }> = [];
 
         try {
@@ -115,7 +134,7 @@ async function processTask(meetingId: string, taskId: number): Promise<void> {
             `).get(file.key) as { id: string } | undefined;
 
             if (existing) {
-                db.prepare(`UPDATE recordings SET meeting_id = ? WHERE id = ?`).run(meetingId, existing.id);
+                db.prepare(`UPDATE recordings SET meeting_id = ? WHERE id = ?`).run(roomId, existing.id);
                 continue;
             }
 
@@ -138,35 +157,52 @@ async function processTask(meetingId: string, taskId: number): Promise<void> {
             db.prepare(`
                 INSERT INTO recordings (id, meeting_id, task_id, started_by, started_at, ended_at, status, visibility, file_url, cos_file_key, title, user_id, user_name, record_mode)
                 VALUES (?, ?, NULL, 'system', strftime('%s', 'now'), strftime('%s', 'now'), 'completed', 'host_only', ?, ?, ?, ?, ?, 'single')
-            `).run(recordingId, meetingId, fileUrl, file.key, userName ? `${userName} 的录制` : `录制文件`, userId, userName);
+            `).run(recordingId, roomId, fileUrl, file.key, userName ? `${userName} 的录制` : `录制文件`, userId, userName);
 
             submitterLogger.info({ recordingId, cosKey: file.key, userName }, '➕ Created new recording record');
         }
 
         // ========== 步骤 2: 获取所有录制并提交转录 ==========
-        const recordings = db.prepare(`
-            SELECT id, cos_file_key, user_id, user_name
-            FROM recordings 
-            WHERE meeting_id = ? AND status = 'completed' AND cos_file_key IS NOT NULL
-            ORDER BY started_at ASC
-        `).all(meetingId) as Array<{
-            id: string;
-            cos_file_key: string | null;
-            user_id: string | null;
-            user_name: string | null;
-        }>;
+        // 如果指定了 trtcTaskId，只获取对应 COS 路径的录制
+        let recordings;
+        if (trtcTaskId) {
+            recordings = db.prepare(`
+                SELECT id, cos_file_key, user_id, user_name
+                FROM recordings 
+                WHERE meeting_id = ? AND status = 'completed' 
+                AND cos_file_key LIKE ?
+                ORDER BY started_at ASC
+            `).all(roomId, `%/${trtcTaskId}/%`) as Array<{
+                id: string;
+                cos_file_key: string | null;
+                user_id: string | null;
+                user_name: string | null;
+            }>;
+        } else {
+            recordings = db.prepare(`
+                SELECT id, cos_file_key, user_id, user_name
+                FROM recordings 
+                WHERE meeting_id = ? AND status = 'completed' AND cos_file_key IS NOT NULL
+                ORDER BY started_at ASC
+            `).all(roomId) as Array<{
+                id: string;
+                cos_file_key: string | null;
+                user_id: string | null;
+                user_name: string | null;
+            }>;
+        }
 
         if (recordings.length === 0) {
             throw new Error('No completed recordings found');
         }
 
-        submitterLogger.info({ count: recordings.length, meetingId }, '📼 Found recordings to transcribe');
+        submitterLogger.info({ count: recordings.length, roomId, trtcTaskId }, '📼 Found recordings to transcribe');
 
         // 为每个录制提交转录
         let submittedCount = 0;
         let skippedCount = 0;
         for (const recording of recordings) {
-            const result = await submitRecordingTranscription(recording, meetingId);
+            const result = await submitRecordingTranscription(recording, roomId);
             if (result === 'submitted') submittedCount++;
             else if (result === 'skipped') skippedCount++;
         }
@@ -200,7 +236,7 @@ async function processTask(meetingId: string, taskId: number): Promise<void> {
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        submitterLogger.error({ meetingId, error: errorMessage }, 'Task processing failed');
+        submitterLogger.error({ roomId, trtcTaskId, error: errorMessage }, 'Task processing failed');
 
         const task = db.prepare(`SELECT retry_count FROM transcription_tasks WHERE id = ?`).get(taskId) as { retry_count: number } | undefined;
         const retryCount = (task?.retry_count || 0) + 1;

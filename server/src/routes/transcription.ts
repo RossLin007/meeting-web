@@ -8,11 +8,11 @@ import { getFileUrl, parseUserIdFromFilename, listFiles } from '../utils/cos';
 const router = Router();
 
 /**
- * 获取所有会议的转录列表
+ * 获取所有转录任务列表
  * GET /api/transcription/list
  * 注意: 此路由必须放在 /:id 之前，否则 list 会被当作 id 处理
  * 
- * 前端应该信任 Worker 的工作结果，直接读取 transcription_tasks 表的状态
+ * 返回以 roomId + trtcTaskId 为唯一标识的转录任务列表
  */
 router.get('/list', async (req: Request, res: Response) => {
     console.log('');
@@ -21,65 +21,78 @@ router.get('/list', async (req: Request, res: Response) => {
     try {
         const db = getDatabase();
 
-        // 获取所有有录制的会议及其转录任务状态
-        // 使用 transcription_tasks 表的 status 作为真实状态来源
-        const meetings = db.prepare(`
+        // 获取所有转录任务，按 room_id + trtc_task_id 分组
+        // 同时关联会议信息和录制数量
+        const tasks = db.prepare(`
             SELECT 
-                m.id as meetingId,
+                tt.id as taskId,
+                tt.meeting_id as meetingId,
+                tt.room_id as roomId,
+                tt.trtc_task_id as trtcTaskId,
                 m.title as meetingTitle,
                 m.started_at as startedAt,
                 m.ended_at as endedAt,
-                COUNT(DISTINCT r.id) as recordingCount,
                 tt.status as taskStatus,
                 tt.completed_at as taskCompletedAt,
-                tt.error_message as taskError
-            FROM meetings m
-            INNER JOIN recordings r ON r.meeting_id = m.id AND r.status = 'completed'
-            LEFT JOIN transcription_tasks tt ON tt.meeting_id = m.id
-            WHERE m.status = 'ended'
-            GROUP BY m.id
-            ORDER BY m.ended_at DESC
+                tt.error_message as taskError,
+                tt.total_recordings as totalRecordings,
+                tt.completed_count as completedCount,
+                tt.failed_count as failedCount,
+                tt.created_at as createdAt
+            FROM transcription_tasks tt
+            LEFT JOIN meetings m ON m.id = tt.meeting_id
+            ORDER BY tt.created_at DESC
             LIMIT 100
         `).all() as Array<{
+            taskId: number;
             meetingId: string;
-            meetingTitle: string;
+            roomId: string | null;
+            trtcTaskId: string | null;
+            meetingTitle: string | null;
             startedAt: number | null;
             endedAt: number | null;
-            recordingCount: number;
             taskStatus: string | null;
             taskCompletedAt: number | null;
             taskError: string | null;
+            totalRecordings: number | null;
+            completedCount: number | null;
+            failedCount: number | null;
+            createdAt: number;
         }>;
 
         // 映射任务状态到前端状态
-        const result = meetings.map(m => {
+        const result = tasks.map(t => {
             // 将 Worker 的任务状态映射到前端状态
-            // Worker 状态: pending, submitting, polling, completed, failed
             let transcriptionStatus: 'none' | 'processing' | 'completed' | 'failed' = 'none';
 
-            if (m.taskStatus === 'completed') {
+            if (t.taskStatus === 'completed') {
                 transcriptionStatus = 'completed';
-            } else if (m.taskStatus === 'submitting' || m.taskStatus === 'polling' ||
-                m.taskStatus === 'processing' || m.taskStatus === 'pending') {
+            } else if (t.taskStatus === 'submitting' || t.taskStatus === 'polling' ||
+                t.taskStatus === 'processing' || t.taskStatus === 'pending') {
                 transcriptionStatus = 'processing';
-            } else if (m.taskStatus === 'failed') {
+            } else if (t.taskStatus === 'failed') {
                 transcriptionStatus = 'failed';
             }
-            // 如果没有任务状态（taskStatus 为 null），则为 'none'
 
             return {
-                meetingId: m.meetingId,
-                meetingTitle: m.meetingTitle,
-                startedAt: m.startedAt,
-                endedAt: m.endedAt,
-                recordingCount: m.recordingCount,
+                taskId: t.taskId,
+                meetingId: t.meetingId,
+                roomId: t.roomId || t.meetingId, // 向后兼容：如果没有 roomId，使用 meetingId
+                trtcTaskId: t.trtcTaskId,
+                meetingTitle: t.meetingTitle || `会议室 ${t.roomId || t.meetingId}`,
+                startedAt: t.startedAt,
+                endedAt: t.endedAt,
+                recordingCount: t.totalRecordings || 0,
+                completedCount: t.completedCount || 0,
+                failedCount: t.failedCount || 0,
                 transcriptionStatus,
-                lastTranscriptAt: m.taskCompletedAt,
-                taskError: m.taskError,
+                lastTranscriptAt: t.taskCompletedAt,
+                taskError: t.taskError,
+                createdAt: t.createdAt,
             };
         });
 
-        console.log(`   ✅ 返回 ${result.length} 个会议`);
+        console.log(`   ✅ 返回 ${result.length} 个转录任务`);
 
         return res.json({
             success: true,
@@ -95,8 +108,12 @@ router.get('/list', async (req: Request, res: Response) => {
 });
 
 /**
- * 手动触发会议转录
+ * 手动触发转录
  * POST /api/transcription/trigger
+ * 
+ * 支持两种模式:
+ * 1. 使用 meetingId 触发会议的所有录制转录（向后兼容）
+ * 2. 使用 roomId + trtcTaskId 触发特定录制会话的转录
  * 
  * 只负责将转录任务添加到队列，实际的 COS 扫描和转录由独立 Worker 服务完成
  */
@@ -105,55 +122,63 @@ router.post('/trigger', async (req: Request, res: Response) => {
     console.log('🎯 [POST /api/transcription/trigger] 手动触发转录');
 
     try {
-        const { meetingId } = req.body;
+        const { meetingId, roomId, trtcTaskId } = req.body;
 
-        if (!meetingId) {
+        if (!meetingId && !roomId) {
             return res.status(400).json({
                 success: false,
-                error: 'meetingId is required',
+                error: 'meetingId or roomId is required',
             });
         }
+
+        const db = getDatabase();
+        const effectiveRoomId = roomId || meetingId;
 
         // 检查会议是否存在
-        const db = getDatabase();
         const meeting = db.prepare(`
             SELECT id, title, status FROM meetings WHERE id = ?
-        `).get(meetingId) as { id: string; title: string; status: string } | undefined;
+        `).get(meetingId || roomId) as { id: string; title: string; status: string } | undefined;
 
-        if (!meeting) {
-            return res.status(404).json({
-                success: false,
-                error: 'Meeting not found',
-            });
-        }
-
-        console.log(`   📋 会议: ${meeting.title} (${meetingId})`);
+        console.log(`   📋 会议室: ${effectiveRoomId}, TRTC TaskId: ${trtcTaskId || 'auto'}`);
 
         // 检查是否已有待处理或进行中的任务
-        const existing = db.prepare(`
-            SELECT id FROM transcription_tasks 
-            WHERE meeting_id = ? AND status IN ('pending', 'submitting', 'polling', 'processing')
-        `).get(meetingId) as { id: number } | undefined;
+        let existing;
+        if (trtcTaskId) {
+            // 使用 roomId + trtcTaskId 精确匹配
+            existing = db.prepare(`
+                SELECT id FROM transcription_tasks 
+                WHERE room_id = ? AND trtc_task_id = ? 
+                AND status IN ('pending', 'submitting', 'polling', 'processing')
+            `).get(effectiveRoomId, trtcTaskId) as { id: number } | undefined;
+        } else {
+            // 使用 meetingId 匹配（向后兼容）
+            existing = db.prepare(`
+                SELECT id FROM transcription_tasks 
+                WHERE meeting_id = ? AND status IN ('pending', 'submitting', 'polling', 'processing')
+            `).get(meetingId) as { id: number } | undefined;
+        }
 
         let taskId: number;
         if (existing) {
-            console.log(`   ⚠️ 会议 ${meetingId} 已有转录任务`);
+            console.log(`   ⚠️ 已有进行中的转录任务: ${existing.id}`);
             taskId = existing.id;
         } else {
             // 创建新任务
             const result = db.prepare(`
-                INSERT INTO transcription_tasks (meeting_id, status, created_at)
-                VALUES (?, 'pending', strftime('%s', 'now'))
-            `).run(meetingId);
+                INSERT INTO transcription_tasks (meeting_id, room_id, trtc_task_id, status, created_at)
+                VALUES (?, ?, ?, 'pending', strftime('%s', 'now'))
+            `).run(meetingId || effectiveRoomId, effectiveRoomId, trtcTaskId || null);
             taskId = result.lastInsertRowid as number;
-            console.log(`   ✅ 已添加转录任务: TaskID=${taskId}`);
+            console.log(`   ✅ 已添加转录任务: TaskID=${taskId}, RoomId=${effectiveRoomId}`);
         }
 
         return res.json({
             success: true,
             data: {
                 taskId,
-                meetingId,
+                meetingId: meetingId || effectiveRoomId,
+                roomId: effectiveRoomId,
+                trtcTaskId: trtcTaskId || null,
                 message: 'Transcription task queued. Worker will scan COS and process recordings.',
             },
         });

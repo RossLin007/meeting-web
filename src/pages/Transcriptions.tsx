@@ -10,14 +10,20 @@ import styles from './Transcriptions.module.css';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 interface TranscriptionItem {
+    taskId: number;
     meetingId: string;
+    roomId: string;
+    trtcTaskId: string | null;
     meetingTitle: string;
     startedAt: number | null;
     endedAt: number | null;
     recordingCount: number;
+    completedCount: number;
+    failedCount: number;
     transcriptionStatus: 'none' | 'processing' | 'completed' | 'failed';
     lastTranscriptAt: number | null;
     taskError?: string | null;
+    createdAt: number;
 }
 
 // 图标组件
@@ -78,17 +84,6 @@ function formatDateTime(timestamp: number | null): string {
     });
 }
 
-function formatDuration(start: number | null, end: number | null): string {
-    if (!start || !end) return '-';
-    const duration = end - start;
-    const hours = Math.floor(duration / 3600);
-    const minutes = Math.floor((duration % 3600) / 60);
-    if (hours > 0) {
-        return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-}
-
 export function Transcriptions() {
     const navigate = useNavigate();
     const { t } = useTranslation();
@@ -137,10 +132,12 @@ export function Transcriptions() {
     }, [loadTranscriptions]);
 
     // 下载转录
-    const handleDownload = async (meetingId: string, format: 'txt' | 'json' = 'txt') => {
-        setDownloading(meetingId);
+    const handleDownload = async (item: TranscriptionItem, format: 'txt' | 'json' = 'txt') => {
+        const downloadKey = `${item.roomId}-${item.trtcTaskId || 'all'}`;
+        setDownloading(downloadKey);
         try {
-            const url = `${API_URL}/api/transcription/meeting/${meetingId}/download?format=${format}`;
+            // 使用 meetingId 路由（向后兼容），但可以扩展为支持 roomId + trtcTaskId
+            const url = `${API_URL}/api/transcription/meeting/${item.meetingId}/download?format=${format}`;
             const response = await fetchWithTimeout(url, {
                 method: 'GET',
                 credentials: 'include',
@@ -155,7 +152,10 @@ export function Transcriptions() {
             const downloadUrl = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = downloadUrl;
-            a.download = `transcription_${meetingId}.${format}`;
+            const filename = item.trtcTaskId
+                ? `transcription_${item.roomId}_${item.trtcTaskId}.${format}`
+                : `transcription_${item.meetingId}.${format}`;
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -169,24 +169,29 @@ export function Transcriptions() {
     };
 
     // 手动触发转录
-    const handleTrigger = async (meetingId: string) => {
-        setTriggering(meetingId);
+    const handleTrigger = async (item: TranscriptionItem) => {
+        const triggerKey = `${item.roomId}-${item.trtcTaskId || 'all'}`;
+        setTriggering(triggerKey);
         try {
             const url = `${API_URL}/api/transcription/trigger`;
             const response = await fetchWithTimeout(url, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ meetingId }),
+                body: JSON.stringify({
+                    meetingId: item.meetingId,
+                    roomId: item.roomId,
+                    trtcTaskId: item.trtcTaskId
+                }),
             });
 
             const result = await response.json();
             if (result.success) {
                 // 更新本地状态为处理中
-                setItems(prev => prev.map(item =>
-                    item.meetingId === meetingId
-                        ? { ...item, transcriptionStatus: 'processing' as const }
-                        : item
+                setItems(prev => prev.map(i =>
+                    i.taskId === item.taskId
+                        ? { ...i, transcriptionStatus: 'processing' as const }
+                        : i
                 ));
                 alert(t('transcriptions.triggerSuccess', 'Transcription task started'));
             } else {
@@ -294,80 +299,87 @@ export function Transcriptions() {
                     </div>
                 ) : (
                     <div className={styles.list}>
-                        {items.map((item) => (
-                            <div key={item.meetingId} className={styles.card}>
-                                <div className={styles.cardHeader}>
-                                    <h3 className={styles.meetingTitle}>{item.meetingTitle}</h3>
-                                    {renderStatus(item.transcriptionStatus)}
-                                </div>
+                        {items.map((item) => {
+                            const itemKey = `${item.roomId}-${item.trtcTaskId || item.taskId}`;
+                            return (
+                                <div key={itemKey} className={styles.card}>
+                                    <div className={styles.cardHeader}>
+                                        <h3 className={styles.meetingTitle}>{item.meetingTitle}</h3>
+                                        {renderStatus(item.transcriptionStatus)}
+                                    </div>
 
-                                <div className={styles.cardMeta}>
-                                    <span>
-                                        <ClockIcon />
-                                        {formatDateTime(item.startedAt)}
-                                    </span>
-                                    <span>
-                                        {t('transcriptions.duration', 'Duration')}: {formatDuration(item.startedAt, item.endedAt)}
-                                    </span>
-                                    <span>
-                                        {t('transcriptions.recordings', 'Recordings')}: {item.recordingCount}
-                                    </span>
-                                </div>
+                                    <div className={styles.cardMeta}>
+                                        <span>
+                                            <ClockIcon />
+                                            {formatDateTime(item.createdAt || item.startedAt)}
+                                        </span>
+                                        {item.trtcTaskId && (
+                                            <span title={t('transcriptions.taskId', 'Task ID')}>
+                                                📋 {item.trtcTaskId.substring(0, 12)}...
+                                            </span>
+                                        )}
+                                        <span>
+                                            {t('transcriptions.recordings', 'Recordings')}: {item.recordingCount}
+                                            {item.completedCount > 0 && ` (${item.completedCount}✓)`}
+                                            {item.failedCount > 0 && ` (${item.failedCount}✗)`}
+                                        </span>
+                                    </div>
 
-                                <div className={styles.cardActions}>
-                                    <button
-                                        onClick={() => navigate(`/recordings?meetingId=${item.meetingId}`)}
-                                        className={styles.secondaryButton}
-                                    >
-                                        {t('transcriptions.viewDetails', 'View Details')}
-                                    </button>
-
-                                    {item.transcriptionStatus === 'completed' && (
-                                        <>
-                                            <button
-                                                onClick={() => handleDownload(item.meetingId, 'txt')}
-                                                className={styles.primaryButton}
-                                                disabled={downloading === item.meetingId}
-                                            >
-                                                <DownloadIcon />
-                                                {downloading === item.meetingId
-                                                    ? t('common.downloading', 'Downloading...')
-                                                    : t('transcriptions.downloadTxt', 'Download TXT')}
-                                            </button>
-                                            <button
-                                                onClick={() => handleDownload(item.meetingId, 'json')}
-                                                className={styles.secondaryButton}
-                                                disabled={downloading === item.meetingId}
-                                            >
-                                                JSON
-                                            </button>
-                                            <button
-                                                onClick={() => handleTrigger(item.meetingId)}
-                                                className={styles.secondaryButton}
-                                                disabled={triggering === item.meetingId}
-                                                title={t('transcriptions.retranscribeHint', 'Re-scan recordings and transcribe again')}
-                                            >
-                                                {triggering === item.meetingId
-                                                    ? t('common.loading', 'Loading...')
-                                                    : t('transcriptions.retranscribe', 'Re-transcribe')}
-                                            </button>
-                                        </>
-                                    )}
-
-                                    {(item.transcriptionStatus === 'none' || item.transcriptionStatus === 'partial') && (
+                                    <div className={styles.cardActions}>
                                         <button
-                                            onClick={() => handleTrigger(item.meetingId)}
-                                            className={styles.primaryButton}
-                                            disabled={triggering === item.meetingId}
+                                            onClick={() => navigate(`/recordings?meetingId=${item.meetingId}`)}
+                                            className={styles.secondaryButton}
                                         >
-                                            {triggering === item.meetingId
-                                                ? t('common.loading', 'Loading...')
-                                                : t('transcriptions.startTranscription', 'Start Transcription')}
+                                            {t('transcriptions.viewDetails', 'View Details')}
                                         </button>
-                                    )}
+
+                                        {item.transcriptionStatus === 'completed' && (
+                                            <>
+                                                <button
+                                                    onClick={() => handleDownload(item, 'txt')}
+                                                    className={styles.primaryButton}
+                                                    disabled={downloading === itemKey}
+                                                >
+                                                    <DownloadIcon />
+                                                    {downloading === itemKey
+                                                        ? t('common.downloading', 'Downloading...')
+                                                        : t('transcriptions.downloadTxt', 'Download TXT')}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDownload(item, 'json')}
+                                                    className={styles.secondaryButton}
+                                                    disabled={downloading === itemKey}
+                                                >
+                                                    JSON
+                                                </button>
+                                                <button
+                                                    onClick={() => handleTrigger(item)}
+                                                    className={styles.secondaryButton}
+                                                    disabled={triggering === itemKey}
+                                                    title={t('transcriptions.retranscribeHint', 'Re-scan recordings and transcribe again')}
+                                                >
+                                                    {triggering === itemKey
+                                                        ? t('common.loading', 'Loading...')
+                                                        : t('transcriptions.retranscribe', 'Re-transcribe')}
+                                                </button>
+                                            </>
+                                        )}
+
+                                        {(item.transcriptionStatus === 'none' || item.transcriptionStatus === 'failed') && (
+                                            <button
+                                                onClick={() => handleTrigger(item)}
+                                                className={styles.primaryButton}
+                                                disabled={triggering === itemKey}
+                                            >
+                                                {triggering === itemKey
+                                                    ? t('common.loading', 'Loading...')
+                                                    : t('transcriptions.startTranscription', 'Start Transcription')}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 )}
             </main>

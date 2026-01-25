@@ -68,3 +68,4 @@ args = ["-y", "@tencentcloud/sdk-mcp"]
 [mcp_servers.tencentcloud-sdk-mcp.env]
 SDKAPPID = "IKIDdn8MK9mESSGqEPN8fz62oQp370jKm5FG"      # 必填：从腾讯云控制台获取
 SECRETKEY = "udBcvAIH6lSI2ZtGVu9D6lpr2JUUeifS"    # 必填：用于鉴权的密钥
+

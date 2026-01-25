@@ -445,6 +445,43 @@ const runMigrations = (): void => {
         `);
 
         console.log('✅ 会议级转录表已就绪 (meeting_transcripts)');
+
+        // 迁移 12: 添加 room_id 和 trtc_task_id 字段（支持 roomId + taskId 作为转写任务唯一标识）
+        if (!taskColumnNames.has('room_id')) {
+            console.log('🔄 运行迁移：添加 room_id 和 trtc_task_id 字段...');
+
+            // transcription_tasks 表添加新字段
+            db.exec(`ALTER TABLE transcription_tasks ADD COLUMN room_id TEXT`);
+            db.exec(`ALTER TABLE transcription_tasks ADD COLUMN trtc_task_id TEXT`);
+
+            // 创建联合唯一索引
+            db.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_transcription_tasks_room_trtc 
+                ON transcription_tasks(room_id, trtc_task_id) 
+                WHERE room_id IS NOT NULL AND trtc_task_id IS NOT NULL
+            `);
+
+            console.log('✅ 迁移完成：transcription_tasks 表已添加 room_id 和 trtc_task_id 字段');
+        }
+
+        // 迁移 13: meeting_transcripts 表添加 room_id 和 trtc_task_id 字段
+        const mtColumns = db.pragma('table_info(meeting_transcripts)') as Array<{ name: string }>;
+        const mtColumnNames = new Set(mtColumns.map(col => col.name));
+
+        if (!mtColumnNames.has('room_id')) {
+            console.log('🔄 运行迁移：meeting_transcripts 表添加 room_id 和 trtc_task_id 字段...');
+
+            db.exec(`ALTER TABLE meeting_transcripts ADD COLUMN room_id TEXT`);
+            db.exec(`ALTER TABLE meeting_transcripts ADD COLUMN trtc_task_id TEXT`);
+
+            // 创建联合索引
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_meeting_transcripts_room_trtc 
+                ON meeting_transcripts(room_id, trtc_task_id)
+            `);
+
+            console.log('✅ 迁移完成：meeting_transcripts 表已添加 room_id 和 trtc_task_id 字段');
+        }
     } catch (error) {
         console.error('❌ 数据库迁移失败:', error);
         throw error;

@@ -191,22 +191,42 @@ async function checkTranscriptionStatus(transcription: {
 async function checkTaskCompletion(): Promise<void> {
     const db = getDatabase();
 
-    // 查找 processing 状态的任务
+    // 查找 processing 状态的任务（包含 room_id 和 trtc_task_id）
     const tasks = db.prepare(`
-        SELECT DISTINCT tt.id, tt.meeting_id
+        SELECT DISTINCT tt.id, tt.meeting_id, tt.room_id, tt.trtc_task_id
         FROM transcription_tasks tt
         WHERE tt.status = 'processing'
-    `).all() as Array<{ id: number; meeting_id: string }>;
+    `).all() as Array<{
+        id: number;
+        meeting_id: string;
+        room_id: string | null;
+        trtc_task_id: string | null;
+    }>;
 
     for (const task of tasks) {
-        // 检查该会议的所有录制是否都完成了转录
-        const recordings = db.prepare(`
-            SELECT r.id,
-                   t.status as transcription_status
-            FROM recordings r
-            LEFT JOIN transcriptions t ON t.recording_id = r.id
-            WHERE r.meeting_id = ? AND r.status = 'completed' AND r.cos_file_key IS NOT NULL
-        `).all(task.meeting_id) as Array<{ id: string; transcription_status: string | null }>;
+        const roomId = task.room_id || task.meeting_id;
+
+        // 检查该任务的所有录制是否都完成了转录
+        // 如果指定了 trtc_task_id，则只检查对应 COS 路径的录制
+        let recordings;
+        if (task.trtc_task_id) {
+            recordings = db.prepare(`
+                SELECT r.id,
+                       t.status as transcription_status
+                FROM recordings r
+                LEFT JOIN transcriptions t ON t.recording_id = r.id
+                WHERE r.meeting_id = ? AND r.status = 'completed' 
+                AND r.cos_file_key LIKE ?
+            `).all(roomId, `%/${task.trtc_task_id}/%`) as Array<{ id: string; transcription_status: string | null }>;
+        } else {
+            recordings = db.prepare(`
+                SELECT r.id,
+                       t.status as transcription_status
+                FROM recordings r
+                LEFT JOIN transcriptions t ON t.recording_id = r.id
+                WHERE r.meeting_id = ? AND r.status = 'completed' AND r.cos_file_key IS NOT NULL
+            `).all(roomId) as Array<{ id: string; transcription_status: string | null }>;
+        }
 
         // 统计状态
         let completedCount = 0;
@@ -245,20 +265,22 @@ async function checkTaskCompletion(): Promise<void> {
 
             pollerLogger.info({
                 taskId: task.id,
-                meetingId: task.meeting_id,
+                roomId,
+                trtcTaskId: task.trtc_task_id,
                 status: finalStatus,
                 completedCount,
                 failedCount,
                 processingTimeMs: processingTime
             }, `🏁 Task ${finalStatus}`);
 
-            // 触发会议级转录合并
+            // 触发转录合并
             if (finalStatus === 'completed' && completedCount > 0) {
                 try {
-                    await mergeMeetingTranscription(task.meeting_id);
+                    await mergeMeetingTranscription(roomId, task.trtc_task_id);
                 } catch (mergeError) {
                     pollerLogger.error({
-                        meetingId: task.meeting_id,
+                        roomId,
+                        trtcTaskId: task.trtc_task_id,
                         error: mergeError instanceof Error ? mergeError.message : 'Unknown error'
                     }, '❌ Meeting merge failed');
                 }
