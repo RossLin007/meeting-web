@@ -117,3 +117,31 @@
         font-size: 12px;
     }
 }
+
+/* ==================== 浅色模式适配 ==================== */
+[data-theme='light'] .cardDark {
+    background: #fff;
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-sm);
+}
+
+[data-theme='light'] .cardDark:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-primary);
+}
+
+[data-theme='light'] .cardDark .icon {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+[data-theme='light'] .cardDark .icon svg {
+    stroke: var(--color-primary);
+}
+
+[data-theme='light'] .cardDark .title {
+    color: var(--text-primary);
+}
+
+[data-theme='light'] .cardDark .desc {
+    color: var(--text-secondary);
+}

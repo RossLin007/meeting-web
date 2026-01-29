@@ -1,0 +1,163 @@
+/* 悬浮面板样式 - 支持拖拽和调整大小 */
+
+.container {
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-bg-card, #1e293b);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    overflow: hidden;
+    animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* 头部 - 拖拽区域 */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-2) var(--spacing-3);
+    background-color: rgba(0, 0, 0, 0.2);
+    cursor: grab;
+    user-select: none;
+    gap: var(--spacing-2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.header:active {
+    cursor: grabbing;
+}
+
+.titleSection {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    flex: 1;
+    min-width: 0;
+}
+
+.iconWrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-secondary, #94a3b8);
+}
+
+.iconWrapper svg {
+    width: 18px;
+    height: 18px;
+}
+
+.title {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text-primary, white);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 var(--spacing-1);
+    background-color: var(--color-primary);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-full);
+}
+
+/* 控制按钮 */
+.controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+}
+
+.controlBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary, #94a3b8);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.controlBtn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--color-text-primary, white);
+}
+
+.controlBtn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* 内容区域 */
+.content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 调整大小手柄 */
+.resizeHandle {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 16px;
+    height: 16px;
+    cursor: se-resize;
+    opacity: 0.3;
+    transition: opacity 0.2s;
+}
+
+.resizeHandle:hover {
+    opacity: 0.6;
+}
+
+.resizeHandle::before {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--color-text-secondary);
+    border-bottom: 2px solid var(--color-text-secondary);
+}
+
+/* 响应式 */
+@media (max-width: 767px) {
+    .container {
+        left: 16px !important;
+        right: 16px !important;
+        width: auto !important;
+        max-width: none;
+    }
+}

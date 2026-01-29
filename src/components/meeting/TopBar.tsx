@@ -1,15 +1,19 @@
 // 智会 - 顶部栏组件
 
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NetworkQuality } from '@/types';
-import { ThemeSelector } from './ThemeSelector';
-import { LanguageSelector } from './LanguageSelector';
 import styles from './TopBar.module.css';
 
 interface TopBarProps {
     title: string;
-    roomId: string;
     networkQuality: NetworkQuality;
+    activeSpeaker?: string;  // 当前说话人名称
+    latestChat?: {
+        senderName: string;
+        content: string;
+        timestamp: number;
+    };
 }
 
 const SignalIcon = ({ quality }: { quality: NetworkQuality }) => {
@@ -39,19 +43,46 @@ const SignalIcon = ({ quality }: { quality: NetworkQuality }) => {
     );
 };
 
-const CopyIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+const MicIcon = () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
     </svg>
 );
 
-export function TopBar({ title, roomId, networkQuality }: TopBarProps) {
-    const { t } = useTranslation();
+const ChatIcon = () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+    </svg>
+);
 
-    const handleCopyRoomId = () => {
-        navigator.clipboard.writeText(roomId);
-    };
+export function TopBar({ title, networkQuality, activeSpeaker, latestChat }: TopBarProps) {
+    const { t } = useTranslation();
+    const [visibleChat, setVisibleChat] = useState<typeof latestChat | null>(null);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // 当有新聊天消息时显示，5秒后隐藏
+    useEffect(() => {
+        if (latestChat) {
+            setVisibleChat(latestChat);
+
+            // 清除之前的定时器
+            if (timerRef.current) {
+                clearTimeout(timerRef.current);
+            }
+
+            // 5秒后隐藏
+            timerRef.current = setTimeout(() => {
+                setVisibleChat(null);
+            }, 5000);
+        }
+
+        return () => {
+            if (timerRef.current) {
+                clearTimeout(timerRef.current);
+            }
+        };
+    }, [latestChat]);
 
     const getQualityColor = () => {
         const colors: Record<NetworkQuality, string> = {
@@ -78,26 +109,28 @@ export function TopBar({ title, roomId, networkQuality }: TopBarProps) {
     return (
         <div className={styles.container}>
             <div className={styles.left}>
-                {/* 主题选择器 */}
-                <ThemeSelector />
                 <h1 className={styles.title}>{title}</h1>
             </div>
 
             <div className={styles.center}>
-                <div className={styles.roomInfo}>
-                    <span className={styles.roomId}>{roomId}</span>
-                    <button className={styles.copyBtn} onClick={handleCopyRoomId} title={t('common.copy')}>
-                        <CopyIcon />
-                    </button>
-                </div>
+                {/* 优先显示最新聊天消息，否则显示当前说话人 */}
+                {visibleChat ? (
+                    <div className={styles.chatNotification}>
+                        <ChatIcon />
+                        <span className={styles.chatSender}>{visibleChat.senderName}:</span>
+                        <span className={styles.chatContent}>{visibleChat.content}</span>
+                    </div>
+                ) : activeSpeaker ? (
+                    <div className={styles.activeSpeaker}>
+                        <MicIcon />
+                        <span className={styles.speakerName}>{activeSpeaker}</span>
+                    </div>
+                ) : null}
             </div>
 
             <div className={styles.right}>
-                {/* 语言选择器 */}
-                <LanguageSelector />
-                <div className={styles.network} style={{ color: getQualityColor() }}>
+                <div className={styles.network} style={{ color: getQualityColor() }} title={getQualityText()}>
                     <SignalIcon quality={networkQuality} />
-                    <span className={styles.networkText}>{getQualityText()}</span>
                 </div>
             </div>
         </div>

@@ -9,4 +9,4 @@ export { useMeetingRoom, type UseMeetingRoomOptions, type UseMeetingRoomReturn }
 export { useMeetingHandlers, type UseMeetingHandlersOptions, type UseMeetingHandlersReturn } from './useMeetingHandlers';
 export { usePermissions, type UsePermissionsOptions, type UsePermissionsReturn, type MeetingRole, type PermissionAction } from './usePermissions';
 export { useSocket, type UseSocketOptions, type UseSocketReturn } from './useSocket';
-
+export { useRemoteVideo, type UseRemoteVideoOptions, type UseRemoteVideoReturn } from './useRemoteVideo';

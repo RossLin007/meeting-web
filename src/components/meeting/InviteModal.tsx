@@ -24,7 +24,15 @@ export function InviteModal({
     const [copied, setCopied] = useState(false);
 
     // 生成邀请链接
-    const inviteLink = `${window.location.origin}/meeting/${roomId}`;
+    const inviteParams = new URLSearchParams();
+    if (meetingTitle) {
+        inviteParams.set('title', meetingTitle);
+    }
+    if (password) {
+        inviteParams.set('password', password);
+    }
+    const inviteQuery = inviteParams.toString();
+    const inviteLink = `${window.location.origin}/meeting/${roomId}${inviteQuery ? `?${inviteQuery}` : ''}`;
 
     // 生成邀请信息
     const inviteText = [

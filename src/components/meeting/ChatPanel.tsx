@@ -18,6 +18,7 @@ interface ChatPanelProps {
     onSendImage?: (file: File) => void;  // 发送图片
     onSendFile?: (file: File) => void;   // 发送文件
     onClose: () => void;
+    hideHeader?: boolean;  // 隐藏头部（用于 FloatingPanel 包裹时）
 }
 
 // 图标组件
@@ -326,6 +327,7 @@ export function ChatPanel({
     onSendImage,
     onSendFile,
     onClose,
+    hideHeader = false,
 }: ChatPanelProps) {
     const { t } = useTranslation();
     const [inputValue, setInputValue] = useState('');
@@ -506,13 +508,15 @@ export function ChatPanel({
 
     return (
         <div className={styles.container}>
-            {/* 头部 */}
-            <div className={styles.header}>
-                <h3 className={styles.title}>{t('chat.title')}</h3>
-                <button className={styles.closeBtn} onClick={onClose}>
-                    <CloseIcon />
-                </button>
-            </div>
+            {/* 头部 - 可隐藏 */}
+            {!hideHeader && (
+                <div className={styles.header}>
+                    <h3 className={styles.title}>{t('chat.title')}</h3>
+                    <button className={styles.closeBtn} onClick={onClose}>
+                        <CloseIcon />
+                    </button>
+                </div>
+            )}
 
             {/* 消息列表 */}
             <div className={styles.messages} ref={messagesContainerRef}>

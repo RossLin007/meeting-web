@@ -3,6 +3,7 @@
 import { Server, Socket } from 'socket.io';
 import { getDatabase } from '../db';
 import { canPerformAction, isAdminRole, type MeetingRole } from './permissions';
+import recordingService from '../services/recording';
 
 // 类型定义
 interface MemberState {
@@ -15,12 +16,20 @@ interface MemberState {
     isHandRaised: boolean;
 }
 
+interface WaitingMember {
+    userId: string;
+    userName: string;
+    joinedAt: number;
+}
+
 interface RoomState {
     meetingId: string;
     hostId: string;
     isLocked: boolean;
     isAllMuted: boolean;
     allowSelfUnmute: boolean;
+    waitingRoomEnabled: boolean;
+    waitingList: WaitingMember[];
     recording: {
         isRecording: boolean;
         taskId?: string;
@@ -33,6 +42,20 @@ interface RoomState {
 const roomStates = new Map<string, RoomState>();
 // 用户ID到Socket映射
 const userSockets = new Map<string, Socket>();
+// 待执行的主持人转移（用于延迟处理，允许刷新重连）
+const pendingHostTransfers = new Map<string, NodeJS.Timeout>();
+const roomStateBroadcastIntervalMs = 30000;
+let roomStateBroadcastTimer: NodeJS.Timeout | null = null;
+
+function ensureRoomStateBroadcast(io: Server): void {
+    if (roomStateBroadcastTimer) return;
+    roomStateBroadcastTimer = setInterval(() => {
+        roomStates.forEach((state, meetingId) => {
+            if (state.members.length === 0 && state.waitingList.length === 0) return;
+            io.to(meetingId).emit('room:state', state);
+        });
+    }, roomStateBroadcastIntervalMs);
+}
 
 /**
  * 获取或创建房间状态
@@ -65,6 +88,8 @@ function getOrCreateRoomState(meetingId: string): RoomState {
             isLocked: false,
             isAllMuted: false,
             allowSelfUnmute: true,
+            waitingRoomEnabled: false,
+            waitingList: [],
             recording: { isRecording: false },
             members: members.map(m => ({
                 userId: m.user_id,
@@ -115,6 +140,7 @@ function updateMemberInDB(meetingId: string, userId: string, updates: Record<str
  * 注册所有Socket事件处理器
  */
 export function registerHandlers(io: Server, socket: Socket): void {
+    ensureRoomStateBroadcast(io);
     const userId = socket.data.userId as string;
     const userName = socket.data.userName as string || userId;
 
@@ -130,14 +156,52 @@ export function registerHandlers(io: Server, socket: Socket): void {
         const { meetingId, userName: joinName } = data;
         const displayName = joinName || userName;
 
-        console.log(`📥 ${displayName} 加入房间: ${meetingId}`);
-
-        // 加入Socket.io房间
-        socket.join(meetingId);
-        socket.data.meetingId = meetingId;
+        console.log(`📥 ${displayName} 请求加入房间: ${meetingId}`);
 
         // 获取/创建房间状态
         const state = getOrCreateRoomState(meetingId);
+
+        // 检查是否是主持人/联席主持人（管理员直接进入）
+        const isAdmin = state.hostId === userId ||
+            state.members.find(m => m.userId === userId && (m.role === 'host' || m.role === 'cohost'));
+
+        // 如果等候室已启用且不是管理员，则进入等候室
+        if (state.waitingRoomEnabled && !isAdmin) {
+            // 检查是否已在等候室
+            const alreadyWaiting = state.waitingList.find(w => w.userId === userId);
+            if (!alreadyWaiting) {
+                state.waitingList.push({
+                    userId,
+                    userName: displayName,
+                    joinedAt: Date.now(),
+                });
+            }
+
+            // 加入一个临时房间用于接收通知
+            socket.join(`${meetingId}:waiting`);
+            socket.data.meetingId = meetingId;
+            socket.data.inWaitingRoom = true;
+
+            // 通知参与者进入等候室
+            socket.emit('waiting_room:joined', {
+                message: '您正在等候室中，请等待主持人批准进入',
+            });
+
+            // 通知主持人有人在等候
+            io.to(meetingId).emit('waiting_room:request', {
+                userId,
+                userName: displayName,
+                waitingCount: state.waitingList.length,
+            });
+
+            console.log(`⏳ ${displayName} 进入等候室: ${meetingId}`);
+            return;
+        }
+
+        // 直接进入会议
+        socket.join(meetingId);
+        socket.data.meetingId = meetingId;
+        socket.data.inWaitingRoom = false;
 
         // 添加成员
         const existingMember = state.members.find(m => m.userId === userId);
@@ -155,9 +219,41 @@ export function registerHandlers(io: Server, socket: Socket): void {
 
             // 广播新成员加入
             socket.to(meetingId).emit('member:joined', newMember);
+
+            // 如果正在录制，更新订阅名单
+            if (state.recording?.isRecording && state.recording.taskId) {
+                try {
+                    const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+                    await recordingService.updateRecordingSubscribers({
+                        sdkAppId: SDK_APP_ID,
+                        taskId: state.recording.taskId,
+                        subscribeUserIds: state.members.map(m => m.userId),
+                    });
+                } catch (error) {
+                    console.error('更新录制订阅失败:', error);
+                }
+            }
+        } else if (displayName && existingMember.userName !== displayName) {
+            existingMember.userName = displayName;
+            io.to(meetingId).emit('member:updated', {
+                userId,
+                userName: displayName,
+            });
         }
 
         // 发送完整房间状态给新加入的用户
+        socket.emit('room:state', state);
+
+        console.log(`✅ ${displayName} 已加入房间: ${meetingId}`);
+    });
+
+    /**
+     * 请求房间状态（用于客户端重同步）
+     */
+    socket.on('room:state:request', (data: { meetingId: string }) => {
+        const { meetingId } = data;
+        const state = roomStates.get(meetingId);
+        if (!state) return;
         socket.emit('room:state', state);
     });
 
@@ -166,7 +262,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
      */
     socket.on('room:leave', (data: { meetingId: string }) => {
         const { meetingId } = data;
-        handleLeaveRoom(socket, meetingId, userId);
+        void handleLeaveRoom(io, socket, meetingId, userId);
     });
 
     // ========== 成员状态 ==========
@@ -271,6 +367,86 @@ export function registerHandlers(io: Server, socket: Socket): void {
         console.log(`✋ ${userId} ${isRaised ? '举手' : '放下手'}`);
     });
 
+    /**
+     * 成员状态同步（心跳）
+     */
+    socket.on('member:state', (data: { meetingId: string; state: { isAudioOn?: boolean; isVideoOn?: boolean; isScreenSharing?: boolean; isHandRaised?: boolean } }) => {
+        const { meetingId, state: reported } = data;
+        const state = roomStates.get(meetingId);
+        if (!state) return;
+        const socketMeetingId = socket.data.meetingId as string | undefined;
+        if (socketMeetingId && socketMeetingId !== meetingId) return;
+
+        const member = state.members.find(m => m.userId === userId);
+        if (!member) return;
+
+        const updates: Record<string, unknown> = {};
+        const changed: Record<string, unknown> = { userId };
+        let hasChanges = false;
+        const role = getUserRole(meetingId, userId);
+        const canSelfUnmute = !state.isAllMuted || state.allowSelfUnmute || isAdminRole(role);
+
+        if (typeof reported.isAudioOn === 'boolean') {
+            if (!reported.isAudioOn || canSelfUnmute) {
+                if (member.isAudioOn !== reported.isAudioOn) {
+                    member.isAudioOn = reported.isAudioOn;
+                    updates.is_muted = reported.isAudioOn ? 0 : 1;
+                    changed.isAudioOn = reported.isAudioOn;
+                    hasChanges = true;
+                }
+            }
+        }
+
+        if (typeof reported.isVideoOn === 'boolean' && member.isVideoOn !== reported.isVideoOn) {
+            member.isVideoOn = reported.isVideoOn;
+            updates.is_camera_off = reported.isVideoOn ? 0 : 1;
+            changed.isVideoOn = reported.isVideoOn;
+            hasChanges = true;
+        }
+
+        if (typeof reported.isScreenSharing === 'boolean' && member.isScreenSharing !== reported.isScreenSharing) {
+            member.isScreenSharing = reported.isScreenSharing;
+            changed.isScreenSharing = reported.isScreenSharing;
+            hasChanges = true;
+        }
+
+        if (typeof reported.isHandRaised === 'boolean' && member.isHandRaised !== reported.isHandRaised) {
+            member.isHandRaised = reported.isHandRaised;
+            changed.isHandRaised = reported.isHandRaised;
+            hasChanges = true;
+        }
+
+        if (!hasChanges) return;
+
+        if (Object.keys(updates).length > 0) {
+            updateMemberInDB(meetingId, userId, updates);
+        }
+
+        io.to(meetingId).emit('member:updated', changed);
+        console.log(`🔁 ${userId} 状态同步`);
+    });
+
+    /**
+     * 更新显示名称
+     */
+    socket.on('member:rename', (data: { meetingId: string; userName: string }) => {
+        const { meetingId, userName: newName } = data;
+        const state = roomStates.get(meetingId);
+        if (!state) return;
+
+        const member = state.members.find(m => m.userId === userId);
+        if (!member) return;
+
+        if (newName && member.userName !== newName) {
+            member.userName = newName;
+            io.to(meetingId).emit('member:updated', {
+                userId,
+                userName: newName,
+            });
+            console.log(`🏷️ ${userId} 更新名称: ${newName}`);
+        }
+    });
+
     // ========== 主持人控制 ==========
 
     /**
@@ -350,7 +526,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
     /**
      * 踢出成员
      */
-    socket.on('host:kick', (data: { meetingId: string; targetId: string; forever?: boolean }) => {
+    socket.on('host:kick', async (data: { meetingId: string; targetId: string; forever?: boolean }) => {
         const { meetingId, targetId, forever = false } = data;
         const role = getUserRole(meetingId, userId);
 
@@ -364,6 +540,20 @@ export function registerHandlers(io: Server, socket: Socket): void {
 
         // 移除成员
         state.members = state.members.filter(m => m.userId !== targetId);
+
+        // 如果正在录制，更新订阅名单
+        if (state.recording?.isRecording && state.recording.taskId) {
+            try {
+                const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+                await recordingService.updateRecordingSubscribers({
+                    sdkAppId: SDK_APP_ID,
+                    taskId: state.recording.taskId,
+                    subscribeUserIds: state.members.map(m => m.userId),
+                });
+            } catch (error) {
+                console.error('更新录制订阅失败:', error);
+            }
+        }
 
         // 广播
         io.to(meetingId).emit('member:kicked', {
@@ -413,6 +603,35 @@ export function registerHandlers(io: Server, socket: Socket): void {
         });
 
         console.log(`🔇 ${userId} 开启全体静音`);
+    });
+
+    /**
+     * 全体关闭视频
+     */
+    socket.on('host:stop_all_video', (data: { meetingId: string }) => {
+        const { meetingId } = data;
+        const role = getUserRole(meetingId, userId);
+
+        if (!canPerformAction(role, 'mute_all')) {  // 复用全体静音权限
+            socket.emit('error', { message: '无权限执行此操作' });
+            return;
+        }
+
+        const state = roomStates.get(meetingId);
+        if (!state) return;
+
+        // 关闭所有非管理员的视频
+        state.members.forEach(m => {
+            if (!isAdminRole(m.role)) {
+                m.isVideoOn = false;
+            }
+        });
+
+        io.to(meetingId).emit('room:stopped_all_video', {
+            by: userId,
+        });
+
+        console.log(`📹 ${userId} 全体关闭视频`);
     });
 
     /**
@@ -518,16 +737,255 @@ export function registerHandlers(io: Server, socket: Socket): void {
         console.log(`👑 ${userId} 将主持人转让给 ${newHostId}`);
     });
 
+    // ========== 等候室管理 ==========
+
+    /**
+     * 开启/关闭等候室
+     */
+    socket.on('waiting_room:toggle', (data: { meetingId: string; enabled: boolean }) => {
+        const { meetingId, enabled } = data;
+        const role = getUserRole(meetingId, userId);
+
+        if (!canPerformAction(role, 'manage_waiting_room')) {
+            socket.emit('error', { message: '无权限执行此操作' });
+            return;
+        }
+
+        const state = roomStates.get(meetingId);
+        if (!state) return;
+
+        state.waitingRoomEnabled = enabled;
+
+        io.to(meetingId).emit('waiting_room:toggled', {
+            enabled,
+            by: userId,
+        });
+
+        console.log(`🚪 ${userId} ${enabled ? '开启' : '关闭'}等候室`);
+    });
+
+    /**
+     * 允许参与者进入会议
+     */
+    socket.on('waiting_room:admit', async (data: { meetingId: string; targetId: string }) => {
+        const { meetingId, targetId } = data;
+        const role = getUserRole(meetingId, userId);
+
+        if (!canPerformAction(role, 'manage_waiting_room')) {
+            socket.emit('error', { message: '无权限执行此操作' });
+            return;
+        }
+
+        const state = roomStates.get(meetingId);
+        if (!state) return;
+
+        // 从等候列表中找到并移除该用户
+        const waitingIndex = state.waitingList.findIndex(w => w.userId === targetId);
+        if (waitingIndex === -1) {
+            socket.emit('error', { message: '该用户不在等候室中' });
+            return;
+        }
+
+        const waitingMember = state.waitingList[waitingIndex];
+        state.waitingList.splice(waitingIndex, 1);
+
+        // 获取该用户的 socket
+        const targetSocket = userSockets.get(targetId);
+        if (targetSocket) {
+            // 离开等候室房间，加入正式会议房间
+            targetSocket.leave(`${meetingId}:waiting`);
+            targetSocket.join(meetingId);
+            targetSocket.data.inWaitingRoom = false;
+
+            // 添加为正式成员
+            const newMember: MemberState = {
+                userId: targetId,
+                userName: waitingMember.userName,
+                role: 'member',
+                isAudioOn: false,
+                isVideoOn: false,
+                isScreenSharing: false,
+                isHandRaised: false,
+            };
+            state.members.push(newMember);
+
+            // 通知该用户已被允许进入
+            targetSocket.emit('waiting_room:admitted', {
+                message: '主持人已允许您进入会议',
+            });
+
+            // 发送房间状态给新成员
+            targetSocket.emit('room:state', state);
+
+            // 广播新成员加入给其他人
+            targetSocket.to(meetingId).emit('member:joined', newMember);
+
+            // 如果正在录制，更新订阅名单
+            if (state.recording?.isRecording && state.recording.taskId) {
+                try {
+                    const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+                    await recordingService.updateRecordingSubscribers({
+                        sdkAppId: SDK_APP_ID,
+                        taskId: state.recording.taskId,
+                        subscribeUserIds: state.members.map(m => m.userId),
+                    });
+                } catch (error) {
+                    console.error('更新录制订阅失败:', error);
+                }
+            }
+        }
+
+        // 更新主持人端的等候列表
+        io.to(meetingId).emit('waiting_room:updated', {
+            waitingList: state.waitingList,
+        });
+
+        console.log(`✅ ${userId} 允许 ${targetId} 进入会议`);
+    });
+
+    /**
+     * 拒绝参与者进入会议
+     */
+    socket.on('waiting_room:reject', (data: { meetingId: string; targetId: string }) => {
+        const { meetingId, targetId } = data;
+        const role = getUserRole(meetingId, userId);
+
+        if (!canPerformAction(role, 'manage_waiting_room')) {
+            socket.emit('error', { message: '无权限执行此操作' });
+            return;
+        }
+
+        const state = roomStates.get(meetingId);
+        if (!state) return;
+
+        // 从等候列表中移除
+        const waitingIndex = state.waitingList.findIndex(w => w.userId === targetId);
+        if (waitingIndex === -1) return;
+
+        state.waitingList.splice(waitingIndex, 1);
+
+        // 通知被拒绝的用户
+        const targetSocket = userSockets.get(targetId);
+        if (targetSocket) {
+            targetSocket.emit('waiting_room:rejected', {
+                message: '主持人已拒绝您进入会议',
+            });
+            targetSocket.leave(`${meetingId}:waiting`);
+        }
+
+        // 更新主持人端的等候列表
+        io.to(meetingId).emit('waiting_room:updated', {
+            waitingList: state.waitingList,
+        });
+
+        console.log(`❌ ${userId} 拒绝 ${targetId} 进入会议`);
+    });
+
+    /**
+     * 允许所有等待者进入会议
+     */
+    socket.on('waiting_room:admit_all', async (data: { meetingId: string }) => {
+        const { meetingId } = data;
+        const role = getUserRole(meetingId, userId);
+
+        if (!canPerformAction(role, 'manage_waiting_room')) {
+            socket.emit('error', { message: '无权限执行此操作' });
+            return;
+        }
+
+        const state = roomStates.get(meetingId);
+        if (!state) return;
+
+        // 复制等候列表
+        const waitingMembers = [...state.waitingList];
+        state.waitingList = [];
+
+        // 批量处理每个等候者
+        for (const waiting of waitingMembers) {
+            const targetSocket = userSockets.get(waiting.userId);
+            if (targetSocket) {
+                targetSocket.leave(`${meetingId}:waiting`);
+                targetSocket.join(meetingId);
+                targetSocket.data.inWaitingRoom = false;
+
+                const newMember: MemberState = {
+                    userId: waiting.userId,
+                    userName: waiting.userName,
+                    role: 'member',
+                    isAudioOn: false,
+                    isVideoOn: false,
+                    isScreenSharing: false,
+                    isHandRaised: false,
+                };
+                state.members.push(newMember);
+
+                targetSocket.emit('waiting_room:admitted', {
+                    message: '主持人已允许您进入会议',
+                });
+                targetSocket.emit('room:state', state);
+                targetSocket.to(meetingId).emit('member:joined', newMember);
+            }
+        }
+
+        // 如果正在录制，更新订阅名单
+        if (state.recording?.isRecording && state.recording.taskId) {
+            try {
+                const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+                await recordingService.updateRecordingSubscribers({
+                    sdkAppId: SDK_APP_ID,
+                    taskId: state.recording.taskId,
+                    subscribeUserIds: state.members.map(m => m.userId),
+                });
+            } catch (error) {
+                console.error('更新录制订阅失败:', error);
+            }
+        }
+
+        // 更新等候列表
+        io.to(meetingId).emit('waiting_room:updated', {
+            waitingList: [],
+        });
+
+        console.log(`✅ ${userId} 允许所有人进入会议 (${waitingMembers.length}人)`);
+    });
+
     /**
      * 结束会议
      */
-    socket.on('host:end', (data: { meetingId: string }) => {
+    socket.on('host:end', async (data: { meetingId: string }) => {
         const { meetingId } = data;
         const role = getUserRole(meetingId, userId);
 
         if (!canPerformAction(role, 'end_meeting')) {
             socket.emit('error', { message: '无权限执行此操作' });
             return;
+        }
+
+        const state = roomStates.get(meetingId);
+
+        // 如果正在录制，先停止录制
+        if (state?.recording?.isRecording) {
+            console.log(`🔴 会议结束，自动停止录制: ${meetingId}`);
+            try {
+                const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+                const result = await recordingService.stopCloudRecording({
+                    sdkAppId: SDK_APP_ID,
+                    roomId: Number(meetingId),
+                });
+
+                if (result.success && result.taskId) {
+                    // 更新数据库中的录制记录
+                    await recordingService.updateRecordingInDB({
+                        taskId: result.taskId,
+                        status: 'completed',
+                    });
+                    console.log(`✅ 录制已停止: ${result.taskId}`);
+                } else {
+                    console.log(`⚠️ 停止录制失败: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('❌ 自动停止录制出错:', error);
+            }
         }
 
         // 更新数据库
@@ -544,6 +1002,17 @@ export function registerHandlers(io: Server, socket: Socket): void {
         roomStates.delete(meetingId);
 
         console.log(`🛑 ${userId} 结束了会议 ${meetingId}`);
+
+        // 自动添加转录任务（直接创建数据库记录，Worker 服务会轮询处理）
+        try {
+            db.prepare(`
+                INSERT OR IGNORE INTO transcription_tasks (meeting_id, status, created_at)
+                VALUES (?, 'pending', strftime('%s', 'now'))
+            `).run(meetingId);
+            console.log(`📝 已为会议 ${meetingId} 添加转录任务`);
+        } catch (error) {
+            console.error(`⚠️ 添加转录任务失败:`, error);
+        }
     });
 
     // ========== 录制控制 ==========
@@ -574,7 +1043,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
         console.log(`🔴 ${userId} 开始录制`);
     });
 
-    socket.on('recording:stop', (data: { meetingId: string }) => {
+    socket.on('recording:stop', async (data: { meetingId: string }) => {
         const { meetingId } = data;
         const role = getUserRole(meetingId, userId);
 
@@ -601,7 +1070,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
 
         const meetingId = socket.data.meetingId as string;
         if (meetingId) {
-            handleLeaveRoom(socket, meetingId, userId);
+            void handleLeaveRoom(io, socket, meetingId, userId);
         }
     });
 }
@@ -609,12 +1078,29 @@ export function registerHandlers(io: Server, socket: Socket): void {
 /**
  * 处理离开房间
  */
-function handleLeaveRoom(socket: Socket, meetingId: string, userId: string): void {
+async function handleLeaveRoom(io: Server, socket: Socket, meetingId: string, userId: string): Promise<void> {
     const state = roomStates.get(meetingId);
     if (!state) return;
 
+    // 检查是否是主持人离开
+    const isHostLeaving = state.hostId === userId;
+
     // 移除成员
     state.members = state.members.filter(m => m.userId !== userId);
+
+    // 如果正在录制，更新订阅名单
+    if (state.recording?.isRecording && state.recording.taskId) {
+        try {
+            const SDK_APP_ID = Number(process.env.TRTC_SDK_APP_ID) || 20032332;
+            await recordingService.updateRecordingSubscribers({
+                sdkAppId: SDK_APP_ID,
+                taskId: state.recording.taskId,
+                subscribeUserIds: state.members.map(m => m.userId),
+            });
+        } catch (error) {
+            console.error('更新录制订阅失败:', error);
+        }
+    }
 
     // 更新数据库
     const db = getDatabase();
@@ -627,7 +1113,7 @@ function handleLeaveRoom(socket: Socket, meetingId: string, userId: string): voi
     // 离开 Socket.io 房间
     socket.leave(meetingId);
 
-    // 广播
+    // 广播成员离开
     socket.to(meetingId).emit('member:left', { userId });
 
     console.log(`📤 ${userId} 离开房间: ${meetingId}`);
@@ -635,6 +1121,61 @@ function handleLeaveRoom(socket: Socket, meetingId: string, userId: string): voi
     // 如果房间空了，清理状态
     if (state.members.length === 0) {
         roomStates.delete(meetingId);
+        return;
+    }
+
+    // 主持人离开时，延迟转移（给刷新重连留时间）
+    if (isHostLeaving && state.members.length > 0) {
+        const transferKey = `${meetingId}:${userId}`;
+
+        // 清除之前的pending转移（如果有）
+        if (pendingHostTransfers.has(transferKey)) {
+            clearTimeout(pendingHostTransfers.get(transferKey)!);
+        }
+
+        console.log(`⏳ 主持人 ${userId} 离开，等待 10 秒后转移...`);
+
+        // 10秒后执行主持人转移（如果没有取消）
+        const timeout = setTimeout(() => {
+            pendingHostTransfers.delete(transferKey);
+
+            const currentState = roomStates.get(meetingId);
+            if (!currentState || currentState.members.length === 0) {
+                console.log(`❌ 主持人转移取消: 房间 ${meetingId} 已不存在或为空`);
+                return;
+            }
+
+            // 检查主持人是否已重连
+            if (currentState.members.some(m => m.userId === userId)) {
+                console.log(`✅ 主持人 ${userId} 已重连，取消转移`);
+                return;
+            }
+
+            // 执行转移
+            const newHost = currentState.members.find(m => m.role === 'cohost') || currentState.members[0];
+            const previousRole = newHost.role;
+            currentState.hostId = newHost.userId;
+            newHost.role = 'host';
+
+            // 更新数据库
+            const db = getDatabase();
+            db.prepare(`
+                UPDATE meeting_members SET role = 'host'
+                WHERE meeting_id = ? AND user_id = ?
+            `).run(meetingId, newHost.userId);
+
+            // 广播主持人变更
+            io.to(meetingId).emit('room:host_changed', {
+                newHostId: newHost.userId,
+                newHostName: newHost.userName,
+                previousRole,
+                reason: 'host_left'
+            });
+
+            console.log(`👑 主持人自动转移: ${userId} → ${newHost.userId} (原角色: ${previousRole})`);
+        }, 10000);  // 10秒延迟
+
+        pendingHostTransfers.set(transferKey, timeout);
     }
 }
 

@@ -6,14 +6,17 @@ import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
 export interface UseRecordingOptions {
     roomId: string;
     memberCount: number;  // 房间人数用于决定录制模式
+    subscribeUserIds?: string[];  // 订阅用户列表
     onError?: (error: Error) => void;
 }
 
 export interface UseRecordingReturn {
     isRecording: boolean;
     recordingTime: number;
+    isStarting: boolean;
+    isStopping: boolean;
     startRecording: () => Promise<string | undefined>;  // 返回 taskId
-    stopRecording: () => Promise<void>;
+    stopRecording: () => Promise<boolean>;
 }
 
 // API 基础 URL
@@ -25,9 +28,11 @@ const DEFAULT_TIMEOUT = 30000;
  * 
  * 调用后端 API 控制腾讯云 TRTC 云录制
  */
-export function useRecording({ roomId, memberCount, onError }: UseRecordingOptions): UseRecordingReturn {
+export function useRecording({ roomId, memberCount, subscribeUserIds, onError }: UseRecordingOptions): UseRecordingReturn {
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
+    const [isStarting, setIsStarting] = useState(false);
+    const [isStopping, setIsStopping] = useState(false);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
 
     // 清理定时器
@@ -75,6 +80,7 @@ export function useRecording({ roomId, memberCount, onError }: UseRecordingOptio
         }
 
         try {
+            setIsStarting(true);
             const response = await fetchWithTimeout(`${API_BASE_URL}/api/recording/start`, {
                 method: 'POST',
                 headers: {
@@ -83,6 +89,10 @@ export function useRecording({ roomId, memberCount, onError }: UseRecordingOptio
                 body: JSON.stringify({
                     roomId,
                     memberCount,  // 传递人数用于后端决定录制模式
+                    subscribeUserIds,
+                    userId: localStorage.getItem('uniauth_user')
+                        ? JSON.parse(localStorage.getItem('uniauth_user') || '{}').id
+                        : undefined,  // 传递当前用户 ID 用于订阅
                 }),
             }, DEFAULT_TIMEOUT);
 
@@ -108,17 +118,20 @@ export function useRecording({ roomId, memberCount, onError }: UseRecordingOptio
             console.error('Failed to start recording:', error);
             onError?.(error as Error);
             return undefined;
+        } finally {
+            setIsStarting(false);
         }
-    }, [roomId, memberCount, onError]);
+    }, [roomId, memberCount, subscribeUserIds, onError]);
 
     // 停止录制
-    const stopRecording = useCallback(async () => {
+    const stopRecording = useCallback(async (): Promise<boolean> => {
         if (!roomId) {
             onError?.(new Error('roomId is required'));
-            return;
+            return false;
         }
 
         try {
+            setIsStopping(true);
             const response = await fetchWithTimeout(`${API_BASE_URL}/api/recording/stop`, {
                 method: 'POST',
                 headers: {
@@ -142,16 +155,21 @@ export function useRecording({ roomId, memberCount, onError }: UseRecordingOptio
             }
 
             setIsRecording(false);
-
+            return true;
         } catch (error) {
             console.error('Failed to stop recording:', error);
             onError?.(error as Error);
+            return false;
+        } finally {
+            setIsStopping(false);
         }
     }, [roomId, onError]);
 
     return {
         isRecording,
         recordingTime,
+        isStarting,
+        isStopping,
         startRecording,
         stopRecording,
     };

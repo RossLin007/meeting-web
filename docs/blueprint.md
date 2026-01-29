@@ -320,11 +320,12 @@ SecretKey: qX1KSTJxPfhXDhz3xlNlw0vhIk485xgE
 
 - [TRTC Web SDK 文档](https://trtc.io/zh/document/59649?platform=web&product=rtcengine&menulabel=coresdk)
 - [腾讯云 IM 文档](https://trtc.io/zh/document/33999?platform=web&product=chat)
-- [TRTC 云录制](https://cloud.tencent.com/document/product/647/16823)
+- [TRTC 云录制](https://cloud.tencent.com/document/product/647/73786)
 云录制的api文档
 https://trtc.io/zh/document/46960?product=rtcengine&menulabel=core%20sdk&platform=web
 - [腾讯云 COS](https://cloud.tencent.com/product/cos)
 
+@tencent-cloud-product-647.md
 
 ## Cos存储位置
 /{SdkAppId}_{RoomId}/individual/{UserId}/{TaskId}/{FileName}

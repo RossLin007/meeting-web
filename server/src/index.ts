@@ -19,6 +19,8 @@ import usersigRoutes from './routes/usersig';
 import meetingsRoutes from './routes/meetings';
 import usersRoutes from './routes/users';
 import contactsRoutes from './routes/contacts';
+import storageRoutes from './routes/storage';
+import transcriptionRoutes from './routes/transcription';
 
 const app = express();
 const httpServer = createServer(app);
@@ -62,6 +64,8 @@ app.use('/api/usersig', usersigRoutes);
 app.use('/api/meetings', meetingsRoutes);
 app.use(usersRoutes);  // 用户路由（包含完整路径）
 app.use('/api/contacts', contactsRoutes);
+app.use('/api/storage', storageRoutes);
+app.use('/api/transcription', transcriptionRoutes);
 
 // 错误处理
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -73,15 +77,15 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 });
 
 // 启动服务器 (使用 httpServer 而不是 app.listen)
-httpServer.listen(PORT, () => {
+httpServer.listen({ port: PORT, host: '0.0.0.0' }, () => {
     console.log(`
 ╭─────────────────────────────────────────╮
 │                                         │
 │   智会后端服务 🚀                        │
 │                                         │
 │   Server running on port ${PORT}          │
-│   http://localhost:${PORT}                │
-│   WebSocket: ws://localhost:${PORT}       │
+│   http://0.0.0.0:${PORT}                   │
+│   WebSocket: ws://0.0.0.0:${PORT}          │
 │                                         │
 ╰─────────────────────────────────────────╯
     `);

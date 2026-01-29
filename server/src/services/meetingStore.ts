@@ -1,7 +1,45 @@
 // 智会后端 - 会议存储接口和实现
 
+import crypto from 'crypto';
 import db from '../db';
 import { v4 as uuidv4 } from 'uuid';
+
+// ========== RoomID 生成 ==========
+
+/**
+ * 生成唯一的 RoomID
+ * 
+ * 范围：100000 ~ 4294967295 (符合 TRTC 规范)
+ * 特性：
+ * - 使用加密安全的随机数生成
+ * - 数据库唯一性校验
+ * - 自动重试机制
+ * 
+ * @param maxRetries 最大重试次数，默认 10 次
+ * @returns 唯一的 RoomID 字符串
+ */
+const generateUniqueRoomId = (maxRetries = 10): string => {
+    // TRTC 支持 1 ~ 4294967295，使用较大起始值确保 ID 长度
+    const MIN_ROOM_ID = 100000;
+    const MAX_ROOM_ID = 4294967295;
+    const range = MAX_ROOM_ID - MIN_ROOM_ID;
+
+    for (let i = 0; i < maxRetries; i++) {
+        // 使用加密安全的随机数
+        const randomBuffer = crypto.randomBytes(4);
+        const randomValue = randomBuffer.readUInt32BE(0);
+        const roomId = (MIN_ROOM_ID + (randomValue % range)).toString();
+
+        // 检查数据库中是否已存在
+        const exists = db.prepare('SELECT 1 FROM meetings WHERE id = ?').get(roomId);
+        if (!exists) {
+            return roomId;
+        }
+        console.warn(`⚠️ RoomID ${roomId} 已存在，重试 ${i + 1}/${maxRetries}`);
+    }
+
+    throw new Error('无法生成唯一的 RoomID，请稍后重试');
+};
 
 // 类型定义
 export interface Meeting {
@@ -99,7 +137,7 @@ export const createMeeting = (params: {
     createdBy: string;
     imGroupId?: string;  // 可选的 IM 群组 ID
 }): Meeting => {
-    const id = Math.floor(Math.random() * 900000 + 100000).toString();
+    const id = generateUniqueRoomId();
     const now = Math.floor(Date.now() / 1000);
 
     const stmt = db.prepare(`
@@ -238,7 +276,7 @@ export const joinMeeting = (params: {
 /**
  * 离开会议
  */
-export const leaveMeeting = (meetingId: string, userId: string): void => {
+export const leaveMeeting = async (meetingId: string, userId: string): Promise<void> => {
     const now = Math.floor(Date.now() / 1000);
     const stmt = db.prepare(`
         UPDATE meeting_members 
@@ -255,6 +293,18 @@ export const leaveMeeting = (meetingId: string, userId: string): void => {
         // 如果没有人在线，结束会议
         updateMeetingStatus(meetingId, 'ended');
         logMeetingEvent(meetingId, userId, 'meeting.ended');
+
+        // 自动添加转录任务（直接创建数据库记录，Worker 服务会轮询处理）
+        try {
+            const stmt = db.prepare(`
+                INSERT OR IGNORE INTO transcription_tasks (meeting_id, status, created_at)
+                VALUES (?, 'pending', strftime('%s', 'now'))
+            `);
+            stmt.run(meetingId);
+            console.log(`📝 已为会议 ${meetingId} 添加转录任务`);
+        } catch (error) {
+            console.error(`⚠️ 添加转录任务失败:`, error);
+        }
     }
 };
 
@@ -607,7 +657,7 @@ export interface ScheduledMeetingInput {
  * 创建预约会议
  */
 export const createScheduledMeeting = (params: ScheduledMeetingInput): Meeting => {
-    const id = Math.floor(Math.random() * 900000 + 100000).toString();
+    const id = generateUniqueRoomId();
     const now = Math.floor(Date.now() / 1000);
 
     const stmt = db.prepare(`

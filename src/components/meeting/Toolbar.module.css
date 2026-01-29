@@ -10,13 +10,23 @@
 }
 
 .leftSection,
-.centerSection,
 .rightSection {
     display: flex;
     gap: var(--spacing-1);
+    min-width: 140px;
+    /* 确保左右区域等宽 */
+}
+
+.leftSection {
+    justify-content: flex-start;
+}
+
+.rightSection {
+    justify-content: flex-end;
 }
 
 .centerSection {
+    display: flex;
     flex: 1;
     justify-content: center;
     gap: var(--spacing-2);
@@ -194,4 +204,65 @@
         width: 20px;
         height: 20px;
     }
+
+    /* 桌面端隐藏按钮在移动端不显示 */
+    .desktopOnly {
+        display: none;
+    }
+}
+
+/* 移动端专属元素 - 默认隐藏 */
+.mobileOnly {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .mobileOnly {
+        display: block;
+    }
+}
+
+/* 更多菜单包装器 */
+.moreWrapper {
+    position: relative;
+}
+
+/* 更多菜单下拉 */
+.moreDropdown {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 8px;
+    min-width: 160px;
+    background-color: var(--color-bg-card, #1e293b);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    z-index: 100;
+}
+
+.moreDropdown button {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    width: 100%;
+    padding: var(--spacing-3) var(--spacing-4);
+    border: none;
+    background: none;
+    color: var(--color-text-primary, white);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-align: left;
+}
+
+.moreDropdown button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.moreDropdown button svg {
+    width: 18px;
+    height: 18px;
+    color: var(--color-text-secondary, #94a3b8);
 }

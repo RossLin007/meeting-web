@@ -34,6 +34,8 @@ interface VideoGridProps {
     isScreenSharing: boolean;
     screenShareUserId: string | null;
     layout?: LayoutType;  // 布局类型
+    activeSpeakerId?: string | null;  // 当前发言者 ID
+    registerRemoteVideo?: (userId: string) => (element: HTMLDivElement | null) => void;
 }
 
 function VideoGridComponent({
@@ -49,6 +51,8 @@ function VideoGridComponent({
     isScreenSharing,
     screenShareUserId,
     layout = 'gallery',
+    activeSpeakerId = null,
+    registerRemoteVideo,
 }: VideoGridProps) {
     const { t } = useTranslation();
 
@@ -106,7 +110,10 @@ function VideoGridComponent({
             {/* 参与者视频区域 - 侧边栏（屏幕共享时）或宫格（正常时） */}
             <div className={hasScreenShare ? styles.participantsSidebar : styles.participantsGrid}>
                 {/* 本地视频 */}
-                <div className={styles.videoItem}>
+                <div className={clsx(
+                    styles.videoItem,
+                    activeSpeakerId === currentUserId && styles.activeSpeaker
+                )}>
                     <div
                         ref={localVideoRef}
                         className={styles.video}
@@ -130,11 +137,16 @@ function VideoGridComponent({
                 {/* 远程用户视频 */}
                 {remoteUsers.map((userId) => {
                     const isAudioOn = memberAudioStates[userId] ?? true;
+                    const isActiveSpeaker = activeSpeakerId === userId;
                     return (
-                        <div key={userId} className={styles.videoItem}>
+                        <div key={userId} className={clsx(
+                            styles.videoItem,
+                            isActiveSpeaker && styles.activeSpeaker
+                        )}>
                             <div
                                 className={styles.video}
                                 id={`remote-video-${userId}`}
+                                ref={registerRemoteVideo ? registerRemoteVideo(userId) : undefined}
                             >
                                 <div className={styles.placeholder}>
                                     <div className={styles.avatar}>
@@ -167,11 +179,12 @@ export const VideoGrid = memo(VideoGridComponent, (prevProps, nextProps) => {
         prevProps.isScreenSharing === nextProps.isScreenSharing &&
         prevProps.screenShareUserId === nextProps.screenShareUserId &&
         prevProps.layout === nextProps.layout &&
+        prevProps.activeSpeakerId === nextProps.activeSpeakerId &&
         prevProps.currentUserId === nextProps.currentUserId &&
         prevProps.currentUserName === nextProps.currentUserName &&
-        JSON.stringify(prevProps.memberAudioStates) === JSON.stringify(nextProps.memberAudioStates)
+        JSON.stringify(prevProps.memberAudioStates) === JSON.stringify(nextProps.memberAudioStates) &&
+        JSON.stringify(prevProps.remoteUserNames) === JSON.stringify(nextProps.remoteUserNames)
     );
 });
 
 export default VideoGrid;
-

@@ -3,8 +3,6 @@
 import { useState, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
-import type { RemoteUser } from '@/types';
-import type { MemberMediaState } from '@/hooks/useRoomState';
 import styles from './MemberPanel.module.css';
 
 interface MemberInfo {
@@ -13,11 +11,11 @@ interface MemberInfo {
     isHost: boolean;
     isMuted: boolean;
     isCameraOff: boolean;
+    isHandRaised?: boolean;
+    isCoHost?: boolean;
 }
 
 interface MemberPanelProps {
-    members: (RemoteUser & { userName?: string })[];
-    memberStates?: Map<string, MemberMediaState>;  // IM 广播的成员状态
     socketMembers?: Array<{  // Socket.io 成员状态
         userId: string;
         userName: string;
@@ -44,6 +42,14 @@ interface MemberPanelProps {
     onKickMember?: (userId: string) => void;  // 踢出成员
     onMuteAll?: () => void;        // 全体静音
     onStopAllVideo?: () => void;   // 全体关闭视频
+    // 等候室相关
+    waitingList?: Array<{ userId: string; userName: string; joinedAt: number }>;
+    waitingRoomEnabled?: boolean;
+    onToggleWaitingRoom?: (enabled: boolean) => void;
+    onAdmitFromWaitingRoom?: (userId: string) => void;
+    onRejectFromWaitingRoom?: (userId: string) => void;
+    onAdmitAllFromWaitingRoom?: () => void;
+    hideHeader?: boolean;  // 隐藏头部（用于 FloatingPanel 包裹时）
 }
 
 // 图标组件
@@ -102,6 +108,14 @@ const VideoOffIcon = () => (
     </svg>
 );
 
+const KickIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <line x1="17" y1="8" x2="23" y2="8" />
+    </svg>
+);
+
 const MoreIcon = () => (
     <svg viewBox="0 0 24 24" fill="currentColor">
         <circle cx="12" cy="5" r="2" />
@@ -117,9 +131,14 @@ const EditIcon = () => (
     </svg>
 );
 
+// 举手图标
+const HandRaiseIcon = () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" width="16" height="16">
+        <path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v6M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+    </svg>
+);
+
 function MemberPanelComponent({
-    members,
-    memberStates,
     socketMembers,
     currentUserId,
     currentUserName,
@@ -138,6 +157,14 @@ function MemberPanelComponent({
     onKickMember,
     onMuteAll,
     onStopAllVideo,
+    // 等候室
+    waitingList = [],
+    waitingRoomEnabled = false,
+    onToggleWaitingRoom,
+    onAdmitFromWaitingRoom,
+    onRejectFromWaitingRoom,
+    onAdmitAllFromWaitingRoom,
+    hideHeader = false,
 }: MemberPanelProps) {
     const { t } = useTranslation();
     const [searchQuery, setSearchQuery] = useState('');
@@ -148,9 +175,8 @@ function MemberPanelComponent({
     // 判断当前用户是否为主持人（使用 hostId 或传入的 isHost prop）
     const currentIsHost = hostId === currentUserId || isHost;
 
-    // 构建成员列表（包含当前用户）- 优先使用 Socket 成员状态
+    // 构建成员列表（包含当前用户）- Socket 为唯一来源
     const allMembers = useMemo(() => {
-        // 如果有 Socket 成员数据，优先使用
         if (socketMembers && socketMembers.length > 0) {
             return socketMembers.map((m) => ({
                 userId: m.userId,
@@ -159,10 +185,9 @@ function MemberPanelComponent({
                 isCoHost: m.role === 'cohost',
                 isMuted: !m.isAudioOn,
                 isCameraOff: !m.isVideoOn,
+                isHandRaised: m.isHandRaised,
             }));
         }
-
-        // 否则使用 TRTC + IM 状态
         return [
             {
                 userId: currentUserId,
@@ -171,28 +196,19 @@ function MemberPanelComponent({
                 isCoHost: false,
                 isMuted: !isMicOn,
                 isCameraOff: !isCameraOn,
+                isHandRaised: false,
             },
-            ...members.map((m) => {
-                const imState = memberStates?.get(m.userId);
-                return {
-                    userId: m.userId,
-                    userName: imState?.displayName || m.userName || m.userId,
-                    isHost: hostId === m.userId,
-                    isCoHost: false,
-                    isMuted: imState ? !imState.isAudioOn : !m.hasAudio,
-                    isCameraOff: imState ? !imState.isVideoOn : !m.hasVideo,
-                };
-            }),
         ];
-    }, [socketMembers, currentUserId, currentUserName, currentIsHost, isMicOn, isCameraOn, members, hostId, memberStates]);
+    }, [socketMembers, currentUserId, currentUserName, currentIsHost, isMicOn, isCameraOn]);
 
     // 过滤成员 - 使用 useMemo 优化性能
     const filteredMembers = useMemo(() =>
-        allMembers.filter(
-            (m) =>
-                m.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                m.userId.toLowerCase().includes(searchQuery.toLowerCase())
-        ),
+        allMembers.filter((m) => {
+            const name = (m.userName || '').toLowerCase();
+            const id = (m.userId || '').toLowerCase();
+            const query = searchQuery.toLowerCase();
+            return name.includes(query) || id.includes(query);
+        }),
         [allMembers, searchQuery]
     );
 
@@ -218,14 +234,17 @@ function MemberPanelComponent({
 
     return (
         <div className={styles.container}>
-            <div className={styles.header}>
-                <h3 className={styles.title}>
-                    {t('members.title')} ({allMembers.length})
-                </h3>
-                <button className={styles.closeBtn} onClick={onClose}>
-                    <CloseIcon />
-                </button>
-            </div>
+            {/* 头部 - 可隐藏 */}
+            {!hideHeader && (
+                <div className={styles.header}>
+                    <h3 className={styles.title}>
+                        {t('members.title')} ({allMembers.length})
+                    </h3>
+                    <button className={styles.closeBtn} onClick={onClose}>
+                        <CloseIcon />
+                    </button>
+                </div>
+            )}
 
             {/* 搜索框 */}
             <div className={styles.searchBox}>
@@ -238,6 +257,69 @@ function MemberPanelComponent({
                     className={styles.searchInput}
                 />
             </div>
+
+            {/* 等候室管理（仅主持人可见） */}
+            {currentIsHost && onToggleWaitingRoom && (
+                <div className={styles.waitingRoomSection}>
+                    <div className={styles.waitingRoomHeader}>
+                        <span>{t('waitingRoom.title', '等候室')}</span>
+                        <label className={styles.toggleSwitch}>
+                            <input
+                                type="checkbox"
+                                checked={waitingRoomEnabled}
+                                onChange={(e) => onToggleWaitingRoom(e.target.checked)}
+                            />
+                            <span className={styles.slider}></span>
+                        </label>
+                    </div>
+
+                    {waitingRoomEnabled && waitingList.length > 0 && (
+                        <>
+                            <div className={styles.waitingListHeader}>
+                                <span>{t('waitingRoom.waiting', '等待中')} ({waitingList.length})</span>
+                                {onAdmitAllFromWaitingRoom && (
+                                    <button
+                                        className={styles.admitAllBtn}
+                                        onClick={onAdmitAllFromWaitingRoom}
+                                    >
+                                        {t('waitingRoom.admitAll', '全部允许')}
+                                    </button>
+                                )}
+                            </div>
+                            <div className={styles.waitingList}>
+                                {waitingList.map((waiter) => (
+                                    <div key={waiter.userId} className={styles.waitingItem}>
+                                        <div className={styles.avatar}>
+                                            <UserIcon />
+                                        </div>
+                                        <span className={styles.waiterName}>{waiter.userName}</span>
+                                        <div className={styles.waitingActions}>
+                                            {onAdmitFromWaitingRoom && (
+                                                <button
+                                                    className={styles.admitBtn}
+                                                    onClick={() => onAdmitFromWaitingRoom(waiter.userId)}
+                                                    title={t('waitingRoom.admit', '允许进入')}
+                                                >
+                                                    ✓
+                                                </button>
+                                            )}
+                                            {onRejectFromWaitingRoom && (
+                                                <button
+                                                    className={styles.rejectBtn}
+                                                    onClick={() => onRejectFromWaitingRoom(waiter.userId)}
+                                                    title={t('waitingRoom.reject', '拒绝')}
+                                                >
+                                                    ✕
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
 
             {/* 成员列表 */}
             <div className={styles.memberList}>
@@ -282,6 +364,17 @@ function MemberPanelComponent({
                                 <span className={styles.hostBadge}>
                                     <CrownIcon />
                                     {t('members.host')}
+                                </span>
+                            )}
+                            {member.isCoHost && !member.isHost && (
+                                <span className={styles.coHostBadge}>
+                                    <CrownIcon />
+                                    {t('members.cohost', '联席主持人')}
+                                </span>
+                            )}
+                            {member.isHandRaised && (
+                                <span className={styles.handRaisedBadge} title={t('meeting.handRaised')}>
+                                    <HandRaiseIcon />
                                 </span>
                             )}
                         </div>
@@ -357,6 +450,16 @@ function MemberPanelComponent({
                                         <button onClick={() => { onStopMemberVideo?.(member.userId); setActiveMenu(null); }}>
                                             <VideoOffIcon />
                                             {t('members.stopVideo')}
+                                        </button>
+                                    )}
+                                    {/* 移除成员：仅主持人可用，不能移除自己 */}
+                                    {currentIsHost && member.userId !== currentUserId && onKickMember && (
+                                        <button
+                                            onClick={() => { onKickMember(member.userId); setActiveMenu(null); }}
+                                            className={styles.dangerBtn}
+                                        >
+                                            <KickIcon />
+                                            {t('members.kick', '移除成员')}
                                         </button>
                                     )}
                                 </div>

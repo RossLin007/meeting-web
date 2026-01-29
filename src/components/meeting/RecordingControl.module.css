@@ -4,15 +4,20 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-2);
-    padding: var(--spacing-2) var(--spacing-3);
+    padding: var(--spacing-2) var(--spacing-4);
     background-color: rgba(0, 0, 0, 0.5);
     border-radius: var(--radius-full);
     backdrop-filter: blur(8px);
+    margin: var(--spacing-2) 0;
 }
 
 .container.recording {
     background-color: rgba(220, 38, 38, 0.2);
     border: 1px solid rgba(220, 38, 38, 0.5);
+}
+
+.container.pending {
+    opacity: 0.75;
 }
 
 /* 录制指示器 */
@@ -87,6 +92,12 @@
 
 .stopBtn:hover {
     background-color: #b91c1c;
+}
+
+.startBtn:disabled,
+.stopBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .stopBtn svg {

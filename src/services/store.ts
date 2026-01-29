@@ -6,6 +6,19 @@ import type { Meeting, MeetingMember, User, ThemeColor } from '@/types';
 // 测试用户配置 (MVP 阶段硬编码，优先从 localStorage 读取)
 const STORAGE_KEY = 'meeting_current_user';
 
+// 生成 UUID 的 polyfill（非 HTTPS 环境可能没有 crypto.randomUUID）
+const generateUUID = (): string => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    // Fallback: 使用 Math.random 生成 UUID v4 格式
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
+};
+
 const getStoredUser = (): User => {
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -15,9 +28,9 @@ const getStoredUser = (): User => {
     } catch (e) {
         console.error('Failed to load user from localStorage:', e);
     }
-    // 默认用户 - 使用加密安全的随机数
+    // 默认用户
     return {
-        userId: 'guest_' + crypto.randomUUID(),
+        userId: 'guest_' + generateUUID(),
         userName: 'Guest',
         userSig: '',
     };

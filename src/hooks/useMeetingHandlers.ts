@@ -20,12 +20,15 @@ export interface UseMeetingHandlersOptions {
     startScreenShare: (element?: HTMLDivElement) => Promise<void>;
     stopScreenShare: () => Promise<void>;
     leaveRoom: () => Promise<void>;
+    leaveSocketRoom?: () => void;
 
     // IM 方法
     sendMessage: (text: string) => Promise<void>;
     sendImage: (file: File) => Promise<void>;
     sendFile: (file: File) => Promise<void>;
     leaveGroup: () => Promise<void>;
+    logoutIM?: () => Promise<void>;
+    clearImCache?: () => void;
 
     // Store 方法
     setCameraOn: (on: boolean) => void;
@@ -39,7 +42,7 @@ export interface UseMeetingHandlersOptions {
     isScreenSharing: boolean;
 
     // 房间状态广播
-    broadcastMeetingEnd?: () => Promise<void>;
+    onEndMeetingSignal?: () => void;
     broadcastAudioState?: (isAudioOn: boolean) => Promise<void>;
     broadcastVideoState?: (isVideoOn: boolean) => Promise<void>;
     broadcastScreenShareState?: (isSharing: boolean) => Promise<void>;
@@ -52,6 +55,7 @@ export interface UseMeetingHandlersReturn {
     handleToggleFullscreen: () => void;
     handleLeaveMeeting: () => Promise<void>;
     handleEndMeeting: () => Promise<void>;
+    handleEndMeetingCleanup: () => Promise<void>;
     handleSendMessage: (text: string) => Promise<void>;
     handleSendImage: (file: File) => Promise<void>;
     handleSendFile: (file: File) => Promise<void>;
@@ -72,10 +76,13 @@ export function useMeetingHandlers({
     startScreenShare,
     stopScreenShare,
     leaveRoom,
+    leaveSocketRoom,
     sendMessage,
     sendImage,
     sendFile,
     leaveGroup,
+    logoutIM,
+    clearImCache,
     setCameraOn,
     setMicOn,
     setScreenSharing,
@@ -83,7 +90,7 @@ export function useMeetingHandlers({
     isCameraOn,
     isMicOn,
     isScreenSharing,
-    broadcastMeetingEnd,
+    onEndMeetingSignal,
     broadcastAudioState,
     broadcastVideoState,
     broadcastScreenShareState,
@@ -92,21 +99,23 @@ export function useMeetingHandlers({
 
     // 切换摄像头
     const handleToggleCamera = useCallback(async () => {
+        const nextCameraOn = !isCameraOn;
+        setCameraOn(nextCameraOn);
         try {
             if (isCameraOn) {
                 await stopLocalVideo();
-                setCameraOn(false);
                 // 广播视频关闭
                 if (broadcastVideoState) {
                     await broadcastVideoState(false);
                 }
             } else if (localVideoRef.current) {
                 await startLocalVideo(localVideoRef.current);
-                setCameraOn(true);
                 // 广播视频开启
                 if (broadcastVideoState) {
                     await broadcastVideoState(true);
                 }
+            } else {
+                setCameraOn(false);
             }
         } catch (error: unknown) {
             const errorMsg = error instanceof Error ? error.message : String(error);
@@ -115,6 +124,7 @@ export function useMeetingHandlers({
             } else if (errorMsg.includes('already stopped')) {
                 setCameraOn(false);
             } else {
+                setCameraOn(!nextCameraOn);
                 console.error('Toggle camera error:', error);
             }
         }
@@ -123,11 +133,16 @@ export function useMeetingHandlers({
     // 切换麦克风
     const handleToggleMic = useCallback(async () => {
         const newMicState = !isMicOn;
-        await toggleAudio();
         setMicOn(newMicState);
-        // 广播音频状态
-        if (broadcastAudioState) {
-            await broadcastAudioState(newMicState);
+        try {
+            await toggleAudio();
+            // 广播音频状态
+            if (broadcastAudioState) {
+                await broadcastAudioState(newMicState);
+            }
+        } catch (error) {
+            setMicOn(!newMicState);
+            console.error('Toggle mic error:', error);
         }
     }, [isMicOn, toggleAudio, setMicOn, broadcastAudioState]);
 
@@ -165,18 +180,99 @@ export function useMeetingHandlers({
 
     // 离开会议
     const handleLeaveMeeting = useCallback(async () => {
-        await leaveRoom();
-        await leaveGroup();
-        reset();
+        console.log('🚪 [handleLeaveMeeting] 开始离开会议...');
+
+        try {
+            console.log('   1. 离开 TRTC 房间...');
+            await leaveRoom();
+            console.log('   ✓ TRTC 房间已离开');
+        } catch (error) {
+            console.error('   ✗ 离开 TRTC 房间失败:', error);
+            // 继续执行，不阻断
+        }
+
+        try {
+            console.log('   2. 离开 IM 群组...');
+            await leaveGroup();
+            console.log('   ✓ IM 群组已离开');
+        } catch (error) {
+            console.error('   ✗ 离开 IM 群组失败:', error);
+            // 继续执行，不阻断
+        }
+
+        try {
+            leaveSocketRoom?.();
+            console.log('   ✓ Socket 房间已离开');
+        } catch (error) {
+            console.error('   ✗ Socket 房间离开失败:', error);
+        }
+
+        try {
+            console.log('   3. 重置状态...');
+            reset();
+            console.log('   ✓ 状态已重置');
+        } catch (error) {
+            console.error('   ✗ 重置状态失败:', error);
+        }
+
+        console.log('   4. 导航到首页...');
         navigate('/');
-    }, [leaveRoom, leaveGroup, reset, navigate]);
+        console.log('   ✓ 导航指令已执行');
+    }, [leaveRoom, leaveGroup, leaveSocketRoom, reset, navigate]);
+
+    const handleEndMeetingCleanup = useCallback(async () => {
+        console.log('🧹 [handleEndMeetingCleanup] 开始结束会议清理...');
+
+        try {
+            await leaveRoom();
+            console.log('   ✓ TRTC 房间已离开');
+        } catch (error) {
+            console.error('   ✗ 离开 TRTC 房间失败:', error);
+        }
+
+        try {
+            clearImCache?.();
+            console.log('   ✓ IM 本地缓存已清理');
+        } catch (error) {
+            console.error('   ✗ 清理 IM 缓存失败:', error);
+        }
+
+        try {
+            await leaveGroup();
+            console.log('   ✓ IM 群组已离开');
+        } catch (error) {
+            console.error('   ✗ 离开 IM 群组失败:', error);
+        }
+
+        try {
+            await logoutIM?.();
+            console.log('   ✓ IM 已登出');
+        } catch (error) {
+            console.error('   ✗ IM 登出失败:', error);
+        }
+
+        try {
+            leaveSocketRoom?.();
+            console.log('   ✓ Socket 房间已离开');
+        } catch (error) {
+            console.error('   ✗ Socket 房间离开失败:', error);
+        }
+
+        try {
+            reset();
+            console.log('   ✓ 状态已重置');
+        } catch (error) {
+            console.error('   ✗ 重置状态失败:', error);
+        }
+
+        navigate('/');
+        console.log('   ✓ 导航指令已执行');
+    }, [leaveRoom, leaveGroup, logoutIM, clearImCache, leaveSocketRoom, reset, navigate]);
 
     // 结束会议（仅主持人）
     const handleEndMeeting = useCallback(async () => {
         try {
-            if (broadcastMeetingEnd) {
-                await broadcastMeetingEnd();
-            }
+            onEndMeetingSignal?.();
             await fetchWithTimeout(`${API_BASE_URL}/api/meetings/${roomId}/end`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -186,8 +282,8 @@ export function useMeetingHandlers({
         } catch (error) {
             console.error('❌ 结束会议失败:', error);
         }
-        await handleLeaveMeeting();
-    }, [roomId, userId, broadcastMeetingEnd, handleLeaveMeeting]);
+        await handleEndMeetingCleanup();
+    }, [roomId, userId, onEndMeetingSignal, handleEndMeetingCleanup]);
 
     // 发送消息
     const handleSendMessage = useCallback(async (text: string) => {
@@ -211,6 +307,7 @@ export function useMeetingHandlers({
         handleToggleFullscreen,
         handleLeaveMeeting,
         handleEndMeeting,
+        handleEndMeetingCleanup,
         handleSendMessage,
         handleSendImage,
         handleSendFile,

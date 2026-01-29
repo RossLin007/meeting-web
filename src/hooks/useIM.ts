@@ -30,6 +30,7 @@ export interface UseIMReturn {
     sendFile: (file: File, onProgress?: (progress: number) => void) => Promise<void>;  // 发送文件
     loadHistory: (count?: number) => Promise<void>;
     markAsRead: () => void;  // 标记所有消息为已读
+    clearLocalCache: () => void;  // 清理本地缓存
 }
 
 // 从 localStorage 加载消息
@@ -60,6 +61,15 @@ function saveMessagesToStorage(roomId: string, messages: ChatMessage[]) {
         localStorage.setItem(key, JSON.stringify(toSave));
     } catch (e) {
         console.error('Failed to save messages to storage:', e);
+    }
+}
+
+function clearMessagesFromStorage(roomId: string) {
+    try {
+        const key = `meeting_messages_${roomId}`;
+        localStorage.removeItem(key);
+    } catch (e) {
+        console.error('Failed to clear messages from storage:', e);
     }
 }
 
@@ -355,6 +365,14 @@ export function useIM(options: UseIMOptions = {}): UseIMReturn {
         optionsRef.current.onUnreadCountChange?.(0);
     }, []);
 
+    const clearLocalCache = useCallback(() => {
+        if (!currentRoomId.current) return;
+        clearMessagesFromStorage(currentRoomId.current);
+        setMessages([]);
+        setUnreadCount(0);
+        optionsRef.current.onUnreadCountChange?.(0);
+    }, []);
+
     return {
         isReady,
         isJoinedGroup,
@@ -369,6 +387,7 @@ export function useIM(options: UseIMOptions = {}): UseIMReturn {
         sendFile,
         loadHistory,
         markAsRead,
+        clearLocalCache,
     };
 }
 

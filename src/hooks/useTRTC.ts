@@ -1,6 +1,7 @@
 // 智会 - TRTC React Hook
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import TRTC from 'trtc-sdk-v5';
 import { trtcService } from '@/services/trtc';
 import type { TRTCConfig, NetworkQuality } from '@/types';
 
@@ -13,6 +14,7 @@ export interface RemoteUserState {
 
 export interface UseTRTCOptions {
     onError?: (error: Error) => void;
+    onRemoteVideoStateChange?: (userId: string, isVideoOn: boolean) => void;
 }
 
 export interface UseTRTCReturn {
@@ -23,6 +25,7 @@ export interface UseTRTCReturn {
     isScreenSharing: boolean;
     networkQuality: NetworkQuality;
     remoteUsers: string[];
+    remoteVideoAvailableUsers: string[];
     screenShareUserId: string | null; // 谁在共享屏幕
 
     // 房间操作
@@ -41,7 +44,7 @@ export interface UseTRTCReturn {
     updateScreenShare: (view: string | HTMLElement) => Promise<void>;
 
     // 远程视频
-    startRemoteVideo: (userId: string, view: string | HTMLElement, isSub?: boolean) => Promise<void>;
+    startRemoteVideo: (userId: string, view: string | HTMLElement, isSub?: boolean) => Promise<boolean>;
     stopRemoteVideo: (userId: string, isSub?: boolean) => Promise<void>;
 }
 
@@ -52,6 +55,7 @@ export function useTRTC(options: UseTRTCOptions = {}): UseTRTCReturn {
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [networkQuality, setNetworkQuality] = useState<NetworkQuality>('unknown');
     const [remoteUsers, setRemoteUsers] = useState<string[]>([]);
+    const [remoteVideoAvailableUsers, setRemoteVideoAvailableUsers] = useState<string[]>([]);
     const [screenShareUserId, setScreenShareUserId] = useState<string | null>(null);
 
     const initialized = useRef(false);
@@ -71,6 +75,7 @@ export function useTRTC(options: UseTRTCOptions = {}): UseTRTCReturn {
 
             trtcService.on('onRemoteUserLeave', (userId) => {
                 setRemoteUsers((prev) => prev.filter((id) => id !== userId));
+                setRemoteVideoAvailableUsers((prev) => prev.filter((id) => id !== userId));
                 // 如果离开的用户正在共享屏幕，清除共享状态
                 setScreenShareUserId((prev) => prev === userId ? null : prev);
             });
@@ -79,29 +84,28 @@ export function useTRTC(options: UseTRTCOptions = {}): UseTRTCReturn {
             trtcService.on('onRemoteVideoAvailable', (userId, streamType) => {
                 console.log('📹 远程视频可用:', userId, '类型:', streamType);
 
-                if (streamType === 'sub' || streamType === 'auxiliary') {
+                const isSubStream = streamType === TRTC.TYPE.STREAM_TYPE_SUB || streamType === 'sub' || streamType === 'auxiliary';
+                if (isSubStream) {
                     // 远程用户开始共享屏幕
                     setScreenShareUserId(userId);
-                } else {
-                    // 主视频流可用，尝试自动订阅
-                    const element = document.getElementById(`remote-video-${userId}`);
-                    if (element) {
-                        console.log('📹 自动订阅远程视频:', userId);
-                        trtcService.startRemoteVideo(userId, element).catch((err) => {
-                            console.error('自动订阅远程视频失败:', err);
-                        });
-                    } else {
-                        console.warn('📹 未找到远程视频容器:', `remote-video-${userId}`);
-                    }
+                    return;
                 }
+                setRemoteVideoAvailableUsers((prev) => prev.includes(userId) ? prev : [...prev, userId]);
+                // 通知调用者远端视频状态变化
+                options.onRemoteVideoStateChange?.(userId, true);
             });
 
             trtcService.on('onRemoteVideoUnavailable', (userId, streamType) => {
                 console.log('📹 远程视频不可用:', userId, '类型:', streamType);
-                if (streamType === 'sub' || streamType === 'auxiliary') {
+                const isSubStream = streamType === TRTC.TYPE.STREAM_TYPE_SUB || streamType === 'sub' || streamType === 'auxiliary';
+                if (isSubStream) {
                     // 远程用户停止共享屏幕
                     setScreenShareUserId((prev) => prev === userId ? null : prev);
+                    return;
                 }
+                setRemoteVideoAvailableUsers((prev) => prev.filter((id) => id !== userId));
+                // 通知调用者远端视频状态变化
+                options.onRemoteVideoStateChange?.(userId, false);
             });
 
             trtcService.on('onNetworkQuality', (quality) => {
@@ -111,6 +115,7 @@ export function useTRTC(options: UseTRTCOptions = {}): UseTRTCReturn {
             trtcService.on('onKickedOut', () => {
                 setIsJoined(false);
                 setRemoteUsers([]);
+                setRemoteVideoAvailableUsers([]);
                 setScreenShareUserId(null);
             });
 
@@ -147,6 +152,7 @@ export function useTRTC(options: UseTRTCOptions = {}): UseTRTCReturn {
         setIsVideoOn(false);
         setIsScreenSharing(false);
         setRemoteUsers([]);
+        setRemoteVideoAvailableUsers([]);
         setNetworkQuality('unknown');
     }, []);
 
@@ -214,13 +220,15 @@ export function useTRTC(options: UseTRTCOptions = {}): UseTRTCReturn {
     }, []);
 
     // 播放远程视频
-    const startRemoteVideo = useCallback(async (userId: string, view: string | HTMLElement) => {
-        await trtcService.startRemoteVideo(userId, view);
+    const startRemoteVideo = useCallback(async (userId: string, view: string | HTMLElement, isSub = false) => {
+        const streamType = isSub ? TRTC.TYPE.STREAM_TYPE_SUB : TRTC.TYPE.STREAM_TYPE_MAIN;
+        return trtcService.startRemoteVideo(userId, view, streamType as typeof TRTC.TYPE.STREAM_TYPE_MAIN);
     }, []);
 
     // 停止远程视频
-    const stopRemoteVideo = useCallback(async (userId: string) => {
-        await trtcService.stopRemoteVideo(userId);
+    const stopRemoteVideo = useCallback(async (userId: string, isSub = false) => {
+        const streamType = isSub ? TRTC.TYPE.STREAM_TYPE_SUB : TRTC.TYPE.STREAM_TYPE_MAIN;
+        await trtcService.stopRemoteVideo(userId, streamType as typeof TRTC.TYPE.STREAM_TYPE_MAIN);
     }, []);
 
     return {
@@ -230,6 +238,7 @@ export function useTRTC(options: UseTRTCOptions = {}): UseTRTCReturn {
         isScreenSharing,
         networkQuality,
         remoteUsers,
+        remoteVideoAvailableUsers,
         screenShareUserId,
         joinRoom,
         leaveRoom,
